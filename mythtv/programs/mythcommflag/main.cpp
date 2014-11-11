@@ -46,6 +46,7 @@ using namespace std;
 #include "CommDetectorFactory.h"
 #include "SlotRelayer.h"
 #include "CustomEventRelayer.h"
+//#include "AudioBuffer.h"
 
 #define LOC      QString("MythCommFlag: ")
 #define LOC_WARN QString("MythCommFlag, Warning: ")
@@ -109,12 +110,22 @@ static QMap<QString,SkipTypes> *init_skip_types(void)
     (*tmp)["blankscene"]  = COMM_DETECT_BLANK_SCENE;
     (*tmp)["blank_scene"] = COMM_DETECT_BLANK_SCENE;
     (*tmp)["logo"]        = COMM_DETECT_LOGO;
+    (*tmp)["audio"]       = (SkipTypes)COMM_DETECT_AUDIO;
+    (*tmp)["sub"]         = (SkipTypes)COMM_DETECT_SUBTITLES;
     (*tmp)["all"]         = COMM_DETECT_ALL;
     (*tmp)["d2"]          = COMM_DETECT_2;
     (*tmp)["d2_logo"]     = COMM_DETECT_2_LOGO;
     (*tmp)["d2_blank"]    = COMM_DETECT_2_BLANK;
     (*tmp)["d2_scene"]    = COMM_DETECT_2_SCENE;
     (*tmp)["d2_all"]      = COMM_DETECT_2_ALL;
+    (*tmp)["ng"]          = (SkipTypes)(COMM_DETECT_NG);
+    (*tmp)["ng_logo"]     = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_LOGO);
+    (*tmp)["ng_blank"]    = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_BLANK);
+    (*tmp)["ng_scene"]    = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_SCENE);
+    (*tmp)["ng_audio"]    = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_AUDIO);
+    (*tmp)["ng_all"]      = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_ALL | COMM_DETECT_AUDIO | COMM_DETECT_SUBTITLES);
+    (*tmp)["ng_allx"]     = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_ALL | COMM_DETECT_AUDIO | COMM_DETECT_SUBTITLES | COMM_DETECT_LOGO_EXPERIMENTAL);
+    (*tmp)["ng_old"]      = (SkipTypes)(COMM_DETECT_NG_OLD);
     return tmp;
 }
 
@@ -739,6 +750,9 @@ static int FlagCommercials(ProgramInfo *program_info, int jobid,
     // configure commercial detection method
     SkipTypes commDetectMethod = (SkipTypes)gCoreContext->GetNumSetting(
                                     "CommercialSkipMethod", COMM_DETECT_ALL);
+    bool commDetectHighResolution =
+            gCoreContext->GetNumSetting(
+                                    "CommercialSkipResolution", 0);
 
     if (cmdline.toBool("commmethod"))
     {
@@ -837,6 +851,10 @@ static int FlagCommercials(ProgramInfo *program_info, int jobid,
     else if (commDetectMethod == COMM_DETECT_OFF)
         return GENERIC_EXIT_OK;
 
+    if (cmdline.toBool("highres"))
+        // default to a cheaper method for debugging purposes
+        commDetectHighResolution = true;
+
     frm_dir_map_t blanks;
     recorder = NULL;
 
@@ -886,7 +904,7 @@ static int FlagCommercials(ProgramInfo *program_info, int jobid,
 
     PlayerFlags flags = (PlayerFlags)(kAudioMuted   |
                                       kVideoIsNull  |
-                                      kDecodeLowRes |
+                                      (commDetectHighResolution?0:kDecodeLowRes) |
                                       kDecodeSingleThreaded |
                                       kDecodeNoLoopFilter |
                                       kNoITV);
@@ -981,6 +999,15 @@ static int FlagCommercials( uint chanid, const QDateTime &starttime,
     }
 
 
+    if (pginfo.GetSubtitle().isEmpty())
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("MythTV Commercial Flagger, flagging commercials for: %1")
+                .arg(pginfo.GetTitle()));
+    else
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("MythTV Commercial Flagger, flagging commercials for: %1 - %2")
+                .arg(pginfo.GetTitle())
+                .arg(pginfo.GetSubtitle()));
     if (progress)
     {
         cerr << "MythTV Commercial Flagger, flagging commercials for:" << endl;

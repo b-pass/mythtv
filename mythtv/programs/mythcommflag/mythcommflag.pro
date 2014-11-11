@@ -35,6 +35,14 @@ HEADERS += LogoDetectorBase.h SceneChangeDetectorBase.h
 HEADERS += SlotRelayer.h CustomEventRelayer.h
 HEADERS += commandlineparser.h
 
+HEADERS += NextgenCommDetector.h
+HEADERS += NextgenLogoDetector.h
+HEADERS += NextgenLogoDetector2.h
+HEADERS += NextgenSceneChangeDetector.h
+HEADERS += AudioChangeDetectorBase.h AudioChangeDetector.h
+HEADERS += AudioBuffer.h
+HEADERS += SubtitleChangeDetectorBase.h SubtitleChangeDetector.h
+
 SOURCES += CommDetectorFactory.cpp CommDetectorBase.cpp
 SOURCES += ClassicLogoDetector.cpp
 SOURCES += ClassicSceneChangeDetector.cpp
@@ -51,6 +59,19 @@ SOURCES += HistogramAnalyzer.cpp
 SOURCES += BlankFrameDetector.cpp
 SOURCES += SceneChangeDetector.cpp
 SOURCES += PrePostRollFlagger.cpp
+SOURCES += AudioChangeDetectorBase.cpp AudioChangeDetector.cpp
+SOURCES += AudioBuffer.cpp
+SOURCES += SubtitleChangeDetectorBase.cpp SubtitleChangeDetector.cpp
+SOURCES += NextgenLogoDetector.cpp
+SOURCES += NextgenLogoDetector2.cpp
+SOURCES += NextgenSceneChangeDetector.cpp
+SOURCES += NextgenCommDetector.cpp
+
+SOURCES += ../../libs/libmythtv/subtitlereader.cpp
+SOURCES += ../../libs/libmythtv/textsubtitleparser.cpp
+SOURCES += ../../libs/libmythtv/xine_demux_sputext.cpp
+SOURCES += ../../libs/libmythtv/teletextreader.cpp
+SOURCES += ../../libs/libmythtv/vbilut.cpp
 
 SOURCES += main.cpp commandlineparser.cpp
 
