@@ -1,5 +1,6 @@
 #include "CommDetectorFactory.h"
 #include "ClassicCommDetector.h"
+#include "NextgenCommDetector.h"
 #include "CommDetector2.h"
 #include "PrePostRollFlagger.h"
 
@@ -31,6 +32,12 @@ CommDetectorFactory::makeCommDetector(
             commDetectMethod, showProgress, fullSpeed,
             player, chanid, startedAt, stopsAt,
             recordingStartedAt, recordingStopsAt, useDB);
+    }
+
+    if ((commDetectMethod & COMM_DETECT_NG))
+    {
+        return new NextgenCommDetector(commDetectMethod, showProgress, fullSpeed,
+                player, chanid, startedAt, stopsAt, recordingStartedAt, recordingStopsAt);
     }
 
     return new ClassicCommDetector(commDetectMethod, showProgress, fullSpeed,

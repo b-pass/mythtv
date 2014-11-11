@@ -577,6 +577,7 @@ bool CommDetector2::go(void)
             return false;
         }
 
+        player->DiscardVideoFrame(player->GetRawVideoFrame(60));
         player->DiscardVideoFrame(player->GetRawVideoFrame(0));
         long long nextFrame = -1;
         currentFrameNumber = 0;
@@ -658,9 +659,10 @@ bool CommDetector2::go(void)
                     QString("processFrame %1 of %2 (%3%) - %4 fps")
                         .arg(currentFrameNumber)
                         .arg(nframes)
-                        .arg((int)roundf(currentFrameNumber * 100.0 / nframes))
+                        .arg((nframes == 0) ? 0 :
+                            (int)roundf(currentFrameNumber * 100.0 / nframes))
                         .arg((currentFrameNumber - lastLoggedFrame) * 1000 /
-                            elapsed));
+                            ((elapsed>0)?elapsed:1)));
                 lastLoggedFrame = currentFrameNumber;
             }
 
