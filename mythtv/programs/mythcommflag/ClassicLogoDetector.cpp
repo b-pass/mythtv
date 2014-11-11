@@ -12,7 +12,6 @@
 // Commercial Flagging headers
 #include "ClassicLogoDetector.h"
 #include "ClassicCommDetector.h"
-#include "commercial_debug.h"
 
 typedef struct edgemaskentry
 {
