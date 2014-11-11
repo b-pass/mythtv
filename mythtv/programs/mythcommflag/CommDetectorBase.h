@@ -11,11 +11,8 @@ using namespace std;
 
 #define MAX_BLANK_FRAMES 180
 
-#define COMM_DETECT_NG 0x400
-#define COMM_DETECT_AUDIO 0x08
-#define COMM_DETECT_SUBTITLES 0x10
 #define COMM_DETECT_NG_OLD 0x80
-#define COMM_DETECT_LOGO_EXPERIMENTAL 0x100
+#define COMM_DETECT_LOGO_EXPERIMENTAL 0x40
 
 typedef enum commMapValues {
     MARK_START   = 0,
