@@ -42,6 +42,7 @@ HEADERS += NextgenSceneChangeDetector.h
 HEADERS += AudioChangeDetectorBase.h AudioChangeDetector.h
 HEADERS += AudioBuffer.h
 HEADERS += SubtitleChangeDetectorBase.h SubtitleChangeDetector.h
+HEADERS += FrameMetadata.h FrameMetadataAggregator.h CommDetector3.h LogoDetector.h BlankDetector.h SceneDetector.h Deinterlacer.h Sobel.hpp
 
 SOURCES += CommDetectorFactory.cpp CommDetectorBase.cpp
 SOURCES += ClassicLogoDetector.cpp
@@ -66,12 +67,14 @@ SOURCES += NextgenLogoDetector.cpp
 SOURCES += NextgenLogoDetector2.cpp
 SOURCES += NextgenSceneChangeDetector.cpp
 SOURCES += NextgenCommDetector.cpp
+SOURCES += CommDetector3.cpp LogoDetector.cpp BlankDetector.cpp SceneDetector.cpp FrameMetadataAggregator.cpp Deinterlacer.cpp
 
 SOURCES += ../../libs/libmythtv/subtitlereader.cpp
 SOURCES += ../../libs/libmythtv/textsubtitleparser.cpp
 SOURCES += ../../libs/libmythtv/xine_demux_sputext.cpp
 SOURCES += ../../libs/libmythtv/teletextreader.cpp
 SOURCES += ../../libs/libmythtv/vbilut.cpp
+SOURCES += ../../libs/libmythtv/filtermanager.cpp
 
 SOURCES += main.cpp commandlineparser.cpp
 
