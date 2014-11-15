@@ -6,7 +6,7 @@ using namespace std;
 #include "frame.h"
 
 #include "NextgenSceneChangeDetector.h"
-#include "Histogram.h"
+#include "Classic/Histogram.h"
 
 NextgenSceneChangeDetector::NextgenSceneChangeDetector(unsigned int width,
         unsigned int height, unsigned int commdetectborder_in,

@@ -30,11 +30,11 @@
 #include "NextgenLogoDetector2.h"
 #include "NextgenCommDetector.h"
 
-#include "pgm.h"
-#include "PGMConverter.h"
-#include "BorderDetector.h"
-#include "EdgeDetector.h"
-#include "CannyEdgeDetector.h"
+#include "Detector2/pgm.h"
+#include "Detector2/PGMConverter.h"
+#include "Detector2/BorderDetector.h"
+#include "Detector2/EdgeDetector.h"
+#include "Detector2/CannyEdgeDetector.h"
 
 #define SAFE_DELETE(x) if (x) { delete x; x = NULL; }
 

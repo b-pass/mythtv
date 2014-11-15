@@ -1,12 +1,12 @@
 #ifndef _NEXTGENLOGOGEDETECTOR2_H_
 #define _NEXTGENLOGOGEDETECTOR2_H_
 
-#include "LogoDetectorBase.h"
+#include "Classic/LogoDetectorBase.h"
 
 extern "C" {
 #include "libavcodec/avcodec.h"    /* AVPicture */
 }
-#include "FrameAnalyzer.h"
+#include "Detector2/FrameAnalyzer.h"
 
 class PGMConverter;
 class BorderDetector;
