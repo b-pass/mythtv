@@ -1,9 +1,9 @@
 #include "CommDetectorFactory.h"
-#include "ClassicCommDetector.h"
-#include "CommDetector2.h"
-#include "PrePostRollFlagger.h"
-#include "NextgenCommDetector.h"
-#include "CommDetector3.h"
+#include "Classic/ClassicCommDetector.h"
+#include "Detector2/CommDetector2.h"
+#include "PrePostRoll/PrePostRollFlagger.h"
+#include "NextGen/NextgenCommDetector.h"
+#include "Detector3/CommDetector3.h"
 
 class MythPlayer;
 class RemoteEncoder;

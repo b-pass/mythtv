@@ -16,7 +16,7 @@
 
 // Commercial Flagging headers
 #include "CommDetectorBase.h"
-#include "ClassicCommDetector.h"
+#include "Classic/ClassicCommDetector.h"
 
 class MythPlayer;
 class LogoDetectorBase;

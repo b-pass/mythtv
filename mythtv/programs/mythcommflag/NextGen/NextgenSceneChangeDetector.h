@@ -1,7 +1,7 @@
 #ifndef _NEXTGENSCENECHANGEDETECTOR_H_
 #define _NEXTGENSCENECHANGEDETECTOR_H_
 
-#include "SceneChangeDetectorBase.h"
+#include "Classic/SceneChangeDetectorBase.h"
 
 class Histogram;
 

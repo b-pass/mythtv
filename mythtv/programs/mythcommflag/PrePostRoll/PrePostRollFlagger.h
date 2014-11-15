@@ -1,7 +1,7 @@
 #ifndef PREPOSTROLLFLAGGER_H
 #define PREPOSTROLLFLAGGER_H
 
-#include "ClassicCommDetector.h"
+#include "Classic/ClassicCommDetector.h"
 
 class PrePostRollFlagger : public ClassicCommDetector
 {

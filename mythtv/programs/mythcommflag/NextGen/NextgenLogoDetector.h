@@ -1,7 +1,7 @@
 #ifndef _NEXTGENLOGOGEDETECTOR_H_
 #define _NEXTGENLOGOGEDETECTOR_H_
 
-#include "LogoDetectorBase.h"
+#include "Classic/LogoDetectorBase.h"
 
 typedef struct edgemaskentry EdgeMaskEntry;
 typedef struct VideoFrame_ VideoFrame;
