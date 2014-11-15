@@ -86,6 +86,10 @@ void MythCommFlagCommandLineParser::LoadArguments(void)
     add("--dry-run", "dryrun", false,
         "Don't actually queue operation, just list what would be done", "");
 
+    add("--highres", "highres", false, "",
+		"Process inout file in full resolution instead of 1/16")
+            ->SetGroup("Advanced");
+    
     add("--sleep", "fullspeed", false, "", "")
             ->SetRemoved("If your system is incapable of performing\n"
                "          commercial detection without disrupting other\n"
