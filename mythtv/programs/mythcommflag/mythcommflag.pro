@@ -13,6 +13,8 @@ INSTALLS = target
 
 QMAKE_CLEAN += $(TARGET)
 
+
+
 DEPENDPATH  += .
 INCLUDEPATH += .
 
@@ -35,6 +37,7 @@ SOURCES += ../../libs/libmythtv/vbilut.cpp
 SOURCES += ../../libs/libmythtv/filtermanager.cpp
 
 
+
 DEPENDPATH  += ./Classic
 HEADERS += ./Classic/ClassicCommDetector.h
 HEADERS += ./Classic/ClassicLogoDetector.h
@@ -47,6 +50,7 @@ SOURCES += ./Classic/ClassicCommDetector.cpp
 SOURCES += ./Classic/ClassicLogoDetector.cpp
 SOURCES += ./Classic/ClassicSceneChangeDetector.cpp
 SOURCES += ./Classic/Histogram.cpp
+
 
 
 DEPENDPATH  += ./Detector2
@@ -117,7 +121,6 @@ SOURCES += ./Detector3/LogoDetector.cpp
 SOURCES += ./Detector3/BlankDetector.cpp
 SOURCES += ./Detector3/SceneDetector.cpp
 SOURCES += ./Detector3/Deinterlacer.cpp
-
 
 
 
