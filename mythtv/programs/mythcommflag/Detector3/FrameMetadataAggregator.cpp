@@ -72,13 +72,20 @@ void FrameMetadataAggregator::calculateBreakList(frm_dir_map_t &output) const
 			if (!inBreak)
 			{
 				inBreak = true;
-				//uint64_t frame = seg.frameStart - (seg.frameStart - prevStop + 1)/2;
-				
-				// always let the show play for 1s before skipping
-				if (seg.frameStart <= m_frameRate)
-					output[(int)round(m_frameRate)+1] = MARK_COMM_START;
+				uint64_t frame = seg.frameStart;
+				if (frame >= m_frameRate)
+				{
+					frame -= 1;
+					// keep up to 1s of blanks
+					if (frame - prevStop >= m_frameRate*2)
+						frame -= m_frameRate;
+				}
 				else
-					output[seg.frameStart - 1] = MARK_COMM_START;
+				{
+					frame = 0;
+				}
+				
+				output[frame] = MARK_COMM_START;
 			}
 		}
 		else
@@ -86,8 +93,14 @@ void FrameMetadataAggregator::calculateBreakList(frm_dir_map_t &output) const
 			if (inBreak)
 			{
 				inBreak = false;
-				//uint64_t frame = seg.frameStart - (seg.frameStart - prevStop + 1)/2;
-				output[prevStop + 1] = MARK_COMM_END;
+				
+				uint64_t frame;
+				// keep up to 1s of blanks
+				if (seg.frameStart - prevStop >= m_frameRate*2)
+					frame = seg.frameStart - m_frameRate;
+				else
+					frame = prevStop + 1;
+				output[frame] = MARK_COMM_END;
 			}
 		}
 		
