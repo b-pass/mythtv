@@ -372,8 +372,8 @@ bool CommDetector3::processAll()
 	
 	m_frameLog << "# Total logo = " << (logoCount * 100.0 / count) << " percent" << std::endl;
 	
-	// Don't use logo results if less than half had it at all
-	if (logoCount < count / 2)
+	// Don't use logo results if if wasn't very common at all
+	if (logoCount < count / 3)
 		m_logoDet.reset();
 	
 	m_aggregator->configure(fps, !!m_logoDet, !!m_sceneDet);
