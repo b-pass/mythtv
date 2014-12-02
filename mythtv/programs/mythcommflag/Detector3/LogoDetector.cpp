@@ -23,8 +23,6 @@ void LogoDetector::searchFrame(uint8_t const *buf,
 	uint32_t xmin = std::max(3u, width * 3/100);
 	uint32_t xmax = width - xmin;
 	
-	//std::cerr << "Searching from " << ymin << " to " << ymax << " of " << height << std::endl;
-	
 	// The center 1/3 of the screen never contains a logo
 	uint32_t cymin = height * 1/3;
 	uint32_t cymax = height - cymin;
@@ -58,15 +56,39 @@ void LogoDetector::searchFrame(uint8_t const *buf,
 
 bool LogoDetector::detectLogo()
 {
-	uint32_t threshold = m_frames * 60 / 100;
 	m_edges.clear();
 	
-	uint32_t minx = INT_MAX, maxx = 0, miny = INT_MAX, maxy = 0;
+	uint32_t max_count = 0;
 	for (int y = 0; y < m_counts.size(); ++y)
 	{
 		for (int x = 0; x < m_counts[y].size(); ++x)
 		{
-			if (m_counts[y][x] >= threshold &&
+			max_count = std::max(max_count, m_counts[y][x]);
+		}
+	}
+	
+	if (max_count < m_frames * 0.40)
+	{
+		std::cerr << "No significant edges, best was " << (max_count * 100.0 / m_frames) << "%" << std::endl;
+		return false;
+	}
+	
+	uint32_t threshold = max_count - m_frames * 0.10;
+	
+	//fprintf(stderr, "\n\n");
+	std::cerr << "Using logo detection threshold of " 
+		<< (threshold * 100.0 / m_frames) << "% (" 
+		<< threshold << " of " << m_frames << ")"
+		<< std::endl;
+	
+	uint32_t minx = INT_MAX, maxx = 0, miny = INT_MAX, maxy = 0;
+	for (int y = 0; y < m_counts.size(); ++y)
+	{
+		//fprintf(stderr, "\n");
+		for (int x = 0; x < m_counts[y].size(); ++x)
+		{
+			//fprintf(stderr, " %.02ld", m_counts[y][x] * 100 / m_frames);
+			if (m_counts[y][x] >= threshold && 
 				// dont include edges who are not near anything else
 				// +/- is safe because of search borders
 				(
@@ -91,7 +113,7 @@ bool LogoDetector::detectLogo()
 		}
 	}
 	
-	m_counts.clear();
+	//fprintf(stderr, "\n\n");
 	
 	return 
 		m_edges.size() >= 20 &&
@@ -127,38 +149,38 @@ void LogoDetector::processFrame(FrameMetadata &meta,
 	}
 }
 
-void LogoDetector::dumpLogo()
+void LogoDetector::dumpLogo(std::ostream &out)
 {
 	if (m_edges.empty())
 	{
-		std::cerr << "No logo found" << std::endl;
+		out << "# No logo found" << std::endl;
 		return;
 	}
 	
 	uint32_t xmin = INT_MAX;
 	for (int i = 0; i < m_edges.size(); ++i)
 		xmin = std::min(xmin, m_edges[i].first);
-	std::cerr << "Logo (" << m_edges.size() << " edges) at ("
-				<< xmin << "," << m_edges[0].second << "):" << std::endl;
+	out << "# Logo of " << m_edges.size() << " edges at "
+				<< xmin << "," << m_edges[0].second << ":" << std::endl;
 	
-	uint32_t px = xmin, py = m_edges[0].second;
+	uint32_t px = 0, py = m_edges[0].second - 1;
 	for (int i = 0; i < m_edges.size(); ++i)
 	{
 		while (py < m_edges[i].second)
 		{
 			px = xmin;
 			++py;
-			std::cerr << std::endl;
+			out << std::endl << "# ";
 		}
 		
 		while (px < m_edges[i].first)
 		{
-			std::cerr << ' ';
+			out << ' ';
 			++px;
 		}
 		
-		std::cerr << '+';
+		out << '+';
 		++px;
 	}
-	std::cerr << "\n\n" << std::endl;
+	out << "\n\n" << std::endl;
 }

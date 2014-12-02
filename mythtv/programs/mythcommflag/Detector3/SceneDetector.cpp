@@ -37,9 +37,9 @@ void SceneDetector::processFrame(FrameMetadata &meta,
 	
 	if (m_scenes.size() > 1 && 
 		!m_scenes[0].blank &&
-		m_scenes[0].frameTime - m_scenes[1].frameTime < 1.0)
+		m_scenes[0].frameTime - m_scenes[1].frameTime < 0.3333)
 	{
-		// Don't change the scene, it has been less than 1s since the previous change
+		// Don't change the scene so quickly
 		m_scenes[0] = meta;
 		return;
 	}

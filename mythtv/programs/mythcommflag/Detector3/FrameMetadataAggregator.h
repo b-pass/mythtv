@@ -2,9 +2,12 @@
 #define MCF_CD3_FRAME_METADATA_AGGREGATOR_H_
 
 #include <algorithm>
+#include <iosfwd>
 #include <stdint.h>
 #include <QList>
 #include "FrameMetadata.h"
+
+#include "programtypes.h" // frm_dir_map_t
 
 struct ShowSegment
 {
@@ -47,14 +50,21 @@ class FrameMetadataAggregator
 public:
 	FrameMetadataAggregator();
 	
-	void configure(double frameRate, bool logo, bool scene);
+	void configure(double frameRate,
+					bool logo,
+					bool scene);
 	void add(FrameMetadata const &meta);
 	void calculateBreakList(frm_dir_map_t &breakList) const;
+	
+	void print(std::ostream &out, bool verbose = false) const;
 	
 private:
 	QList<ShowSegment> coalesce() const;
 	void calculateSegmentScore(ShowSegment &seg) const;
-	void dump(QList<ShowSegment> const &segments, char const *desc = "?") const;
+	void dump(std::ostream &out, 
+				QList<ShowSegment> const &segments, 
+				char const *desc = "?",
+				bool verbose = false) const;
 	
 	uint32_t m_maxBreakLength;
 	uint32_t m_minBreakLength;

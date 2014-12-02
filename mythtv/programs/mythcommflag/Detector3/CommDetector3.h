@@ -1,6 +1,7 @@
 #ifndef MCF_COMMDETECTOR3_H_
 #define MCF_COMMDETECTOR3_H_
 
+#include <fstream>
 #include <stdint.h>
 #include <QObject>
 #include <QDateTime>
@@ -58,6 +59,7 @@ class CommDetector3 : public CommDetectorBase
 		QScopedPointer<FrameMetadataAggregator> m_aggregator;
 		QScopedPointer<Deinterlacer> m_deinterlacer;
 		
+		std::ofstream m_frameLog;
 		frm_dir_map_t m_oldMap;
 };
 
