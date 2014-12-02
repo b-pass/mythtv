@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <iostream>
+#include <fstream>
 
 #include "mythcontext.h"
 #include "programtypes.h"
@@ -117,7 +118,7 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 	if (segments.empty())
 		return segments;
 	
-	dump(segments, "original");
+	dump(std::cerr, segments, "original");
 	
 	// join all consecutive like segments together
 	int i = 1;
@@ -131,12 +132,19 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 		calculateSegmentScore(cur);
 		
 		if ((prev.score >= 0 && cur.score >= 0) ||
-			(prev.score < 0 && cur.score < 0 &&
-			// exception, don't make breaks bigger than the total max
-			(cur.frameStop - prev.frameStart + 1) / m_frameRate < m_maxBreakLength))
+			(prev.score < 0 && cur.score < 0))
 		{
-			prev += cur;
-			segments.removeAt(i);
+			if (cur.score < 0 && (cur.frameStop - prev.frameStart + 1) / m_frameRate > m_maxBreakLength)
+			{
+				// force positive it if would make a negative seg too long
+				cur.score = 0;
+				++i;
+			}
+			else
+			{
+				prev += cur;
+				segments.removeAt(i);
+			}
 		}
 		else
 		{
@@ -144,7 +152,7 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 		}
 	}
 	
-	dump(segments, "easy merge");
+	dump(std::cerr, segments, "easy merge");
 	
 	// join runs of small segments together
 	for (int b = 0; b < segments.size(); ++b)
@@ -179,7 +187,7 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 		}
 	}
 	
-	dump(segments, "declutter");
+	dump(std::cerr, segments, "declutter");
 	
 	for (int i = 0; i < segments.size(); ++i)
 	{
@@ -251,7 +259,30 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 		}
 	}
 	
-	dump(segments, "final");
+	// Find consecutive "breaks" which would be too long together
+	int breakStart = -1;
+	for (int i = 0; i < segments.size(); ++i)
+	{
+		if (segments[i].score < 0)
+		{
+			if (breakStart < 0)
+			{
+				breakStart = i;
+			}
+			else if ((segments[i].frameStop - segments[breakStart].frameStart) / m_frameRate > m_maxBreakLength)
+			{
+				// This segment would put the break over the size limit
+				segments[i].score = 0;
+				breakStart = -1;
+			}
+		}
+		else
+		{
+			breakStart = -1;
+		}
+	}
+	
+	dump(std::cerr, segments, "final");
 	return segments;
 }
 
@@ -308,22 +339,46 @@ void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
 	if (m_scene)
 	{
 		double secs_per_scene = seg.sceneCount ? segTime / seg.sceneCount : segTime;
-		if (secs_per_scene < 2)
-			seg.score -= 10;
+		if (secs_per_scene < 2 && segTime >= 1)
+			seg.score -= 15;
 		else if (secs_per_scene < 3)
-			seg.score -= 5;
-		else if (secs_per_scene > 6)
-			seg.score += 10;
+			seg.score -= 10;
+		else if (secs_per_scene >= 6)
+			seg.score += 15;
 		else if (secs_per_scene > 5)
-			seg.score += 5;
+			seg.score += 10;
 	}
 	
 	seg.score -= std::min(10u, (seg.formatChanges + seg.sizeChanges)) * 10;
 }
 
-void FrameMetadataAggregator::dump(QList<ShowSegment> const &segments, char const *desc) const
+void FrameMetadataAggregator::print(std::ostream &out, bool verbose) const
 {
-	std::cerr << segments.size() << " " << desc << " show segments: " << std::endl;
+	dump(out, m_segments, "dump", verbose);
+}
+
+void FrameMetadataAggregator::dump(
+		std::ostream &out, 
+		QList<ShowSegment> const &segments, 
+		char const *desc, 
+		bool verbose) const
+{
+	out << segments.size() << " " << desc << " show segments:\n";
+	
+	char buffer[256];
+	if (verbose)
+	{
+		snprintf(buffer, sizeof(buffer),
+			"%13s (%5s): %6s = %5s, %4s, %1s %s\n",
+			"Frames",
+			"Time",
+			"Score",
+			"Scene",
+			"Logo",
+			"FC",
+			"Recalc");
+		out << buffer;
+	}
 	
 	for (int i = 0; i < segments.size(); ++i)
 	{
@@ -339,7 +394,7 @@ void FrameMetadataAggregator::dump(QList<ShowSegment> const &segments, char cons
 		double totalTime = totalFrames / m_frameRate;
 		double secs_per_scene = seg.sceneCount ? totalTime / seg.sceneCount : -1.0;
 		
-		fprintf(stderr,
+		snprintf(buffer, sizeof(buffer),
 			"%6ld-%6ld (%5.01lfs): %-6d = %5.01lf, %3ld%%, %1d %s\n",
 			seg.frameStart, seg.frameStop, totalTime,
 			seg.score,
@@ -347,7 +402,9 @@ void FrameMetadataAggregator::dump(QList<ShowSegment> const &segments, char cons
 			seg.logoCount * 100 / (totalFrames ? totalFrames : 1),
 			seg.formatChanges + seg.sizeChanges,
 			recalc);
+		out << buffer;
 	}
+	out << "\n";
 }
 
 void FrameMetadataAggregator::configure(double frameRate, bool logo, bool scene)

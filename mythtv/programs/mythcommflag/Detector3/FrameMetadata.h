@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <cmath>
 #include <algorithm>
+#include <iostream>
 
 #include "frame.h"
 
@@ -17,14 +18,13 @@ enum FrameFormat
 
 struct FrameMetadata
 {
-	float aspect;
 	uint64_t frameNumber;
 	double frameTime;
 	int format;
+	float aspect;
 	
 	double brightnessAverage;
 	double brightnessVariance;
-	uint32_t brightnessCount[256];
 	
 	uint32_t brightMinX, brightMaxX;
 	uint32_t brightMinY, brightMaxY;
@@ -46,6 +46,7 @@ struct FrameMetadata
 		format = FF_NORMAL;
 		logo = scene = blank = false;
 		
+		uint32_t brightnessCount[256];
 		memset(brightnessCount, 0, sizeof(brightnessCount));
 		
 		brightMinX = width;
@@ -101,6 +102,72 @@ struct FrameMetadata
 			brightnessAverage = 127;
 			brightnessVariance = 127*127;
 		}
+	}
+	
+	static void printHeader(std::ostream &os)
+	{
+		os 
+			<< "Number "
+			<< "Time "
+			<< "Format "
+			<< "Aspect "
+			<< "BrightAvg "
+			<< "BrightVar "
+			<< "BrightLeft "
+			<< "BrightRight "
+			<< "BrightTop "
+			<< "BrightBottom "
+			<< "Logo "
+			<< "Scene "
+			<< "Blank "
+			<< "\n"
+		;
+	}
+	
+	friend std::ostream &operator << (std::ostream &os, FrameMetadata const &meta)
+	{
+		return os 
+			<< meta.frameNumber << " " 
+			<< meta.frameTime << " "
+			<< meta.format << " "
+			<< meta.aspect << " "
+			<< meta.brightnessAverage << " "
+			<< meta.brightnessVariance << " "
+			<< meta.brightMinX << " "
+			<< meta.brightMaxX << " "
+			<< meta.brightMinY << " "
+			<< meta.brightMaxY << " "
+			<< (meta.logo ? "Y" : "N") << " "
+			<< (meta.scene ? "Y" : "N") << " "
+			<< (meta.blank ? "Y" : "N") << " "
+		;
+	}
+	
+	friend std::istream &operator >> (std::istream &is, FrameMetadata &meta)
+	{
+		char cl, cs, cb;
+		cl = cs = cb = 'N';
+		
+		memset(&meta, 0, sizeof(meta));
+		is 
+			>> meta.frameNumber
+			>> meta.frameTime
+			>> meta.format
+			>> meta.aspect
+			>> meta.brightnessAverage
+			>> meta.brightnessVariance
+			>> meta.brightMinX
+			>> meta.brightMaxX
+			>> meta.brightMinY
+			>> meta.brightMaxY
+			>> cl >> cs >> cb;
+		;
+		
+		meta.logo = cl != 'N';
+		meta.scene = cs != 'N';
+		meta.blank = cb != 'N';
+		
+		return is;
 	}
 };
 

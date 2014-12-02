@@ -40,6 +40,13 @@ CommDetector3::CommDetector3(SkipType commDetectMethod_in,
 	, m_wantUpdates(false)
 	, m_needUpdate(false)
 {
+	QString logFile;
+	if (chanid > 0)
+		logFile = QString("/tmp/mcf_%1_%2.log").arg(chanid).arg(m_start.toString("yyyyMMddhhmmss"));
+	else
+		logFile = "/tmp/mcf_frames.log";
+	m_frameLog.open(logFile.toAscii().data());
+	m_frameLog << "# CD3 frame log generated " << MythDate::current().toString().toAscii().data() << std::endl;
 }
 
 CommDetector3::~CommDetector3()
@@ -90,10 +97,8 @@ bool CommDetector3::go()
         return false;
     }
     
-    m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(150));
-    m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(0)); 
-    
     m_player->EnableSubtitles(false);
+	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(30));
 	m_player->ResetTotalDuration();
 	
     if (m_logoDet)
@@ -120,14 +125,27 @@ void CommDetector3::preSearchForLogo()
 	emit statusUpdate(QCoreApplication::translate("(mythcommflag)", "Searching for Logo"));
 	std::cerr << "Searching for logo..." << std::endl;
 	
+	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(0));
+	m_player->ResetTotalDuration();
+	
 	double fps = m_player->GetDecoder()->GetFPS();
 
-	uint64_t start = uint64_t(m_recordingStart.secsTo(m_start) * fps);
-	uint64_t postRoll = uint64_t(m_start.secsTo(m_recordingStop) * fps);
-	uint64_t stop = start + uint64_t(600 * fps);
-	
-	if (stop > postRoll)
-		stop = postRoll;
+	uint64_t start, stop;
+	uint64_t recLen = m_recordingStart.secsTo(m_recordingStop);
+	if (m_stillRecording || recLen <= 900)
+	{
+		start = uint64_t(m_recordingStart.secsTo(m_start) * fps);
+		stop = start + uint64_t(600 * fps);
+		uint64_t absEnd = uint64_t(recLen * fps);
+		if (stop > absEnd)
+			stop = absEnd;
+	}	
+	else
+	{
+		// where possible, use the middle of the show
+		start = m_player->GetTotalFrameCount() / 2 - uint64_t(300*fps);
+		stop = start + uint64_t(600 * fps);
+	}
 	
 	int interval = (int)fps;
 	if (interval < 2)
@@ -155,7 +173,7 @@ void CommDetector3::preSearchForLogo()
         // Individal frames have a size which can be larger than the actual size of the video
         QSize const &videoSize = m_player->GetVideoSize();
         
-		if (frame)
+		if (frame && frame->buf)
 			m_deinterlacer->processFrame(frame);
 		
 		if (frame && frame->buf && (frame->frameNumber % interval) == 0)
@@ -184,19 +202,12 @@ void CommDetector3::preSearchForLogo()
 	
 	std::cerr << "Search for logo is complete" << std::endl;
 	
-	if (!m_logoDet->detectLogo())
-	{
-		emit statusUpdate("Logo not found");
-		m_logoDet.reset();
-	}
-	else
-	{
-		m_logoDet->dumpLogo();
-	}
+	bool found = m_logoDet->detectLogo();
 	
-	// reset player to beginning
-	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(0));
-	m_player->ResetTotalDuration();
+	m_logoDet->dumpLogo(m_frameLog);
+	
+	if (!found)
+		m_logoDet.reset();
 }
 
 bool CommDetector3::processAll()
@@ -206,6 +217,10 @@ bool CommDetector3::processAll()
     
 	if (!m_logoDet && !m_sceneDet && !m_blankDet)
 		return true;
+	
+	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(30));
+	m_player->ResetTotalDuration();
+	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(0));
 	
 	double fps = m_player->GetDecoder()->GetFPS();
 	
@@ -219,10 +234,13 @@ bool CommDetector3::processAll()
     
     emit statusUpdate("Processing");
     std::cerr << "Starting processing of " << totalFrames << " frames" << std::endl;
-	
+    
+    m_frameLog << "FPS=" << fps << std::endl;
+    FrameMetadata::printHeader(m_frameLog);
+    
 	m_aggregator->configure(fps, !!m_logoDet, !!m_sceneDet);
 	
-    uint64_t count = 0;
+    uint64_t count = 0, logoCount = 0;
     while (m_player->GetEof() == kEofStateNone)
     {
 		if (m_bStop)
@@ -280,6 +298,11 @@ bool CommDetector3::processAll()
 				if (m_logoDet)
 					m_logoDet->processFrame(meta, buf, videoSize.width(), videoSize.height(), stride);
 				
+				if (meta.logo)
+					++logoCount;
+				
+				m_frameLog << meta << std::endl;
+				
 				wasBlank = meta.blank;
 				m_aggregator->add(meta);
 			}
@@ -290,6 +313,9 @@ bool CommDetector3::processAll()
 			frameDropped.blank = wasBlank = true;
 			if (frame)
 				frameDropped.frameNumber = frame->frameNumber;
+			
+			m_frameLog << frameDropped << std::endl;
+			
 			m_aggregator->add(frameDropped);
 		}
 		m_player->DiscardVideoFrame(frame);
@@ -344,9 +370,18 @@ bool CommDetector3::processAll()
 		}*/
 	}
 	
+	m_frameLog << "# Total logo = " << (logoCount * 100.0 / count) << " percent" << std::endl;
+	
+	// Don't use logo results if less than half had it at all
+	if (logoCount < count / 2)
+		m_logoDet.reset();
+	
+	m_aggregator->configure(fps, !!m_logoDet, !!m_sceneDet);
+	
     emit statusUpdate("Done searching");
     std::cerr << "\nDone\n" << std::endl;
     
+    m_frameLog << std::flush;
 	return true;
 }
 
@@ -400,34 +435,9 @@ void CommDetector3::PrintFullMap(std::ostream &out,
 									frm_dir_map_t const *comm_breaks,
 									bool verbose) const
 {
-    /*if (verbose)
-    {
-        QByteArray tmp = FrameInfoEntry::GetHeader().toLatin1();
-        out << tmp.constData() << " mark" << endl;
-    }
-
-    for (long long i = 1; i < curFrameNumber; i++)
-    {
-        QMap<long long, FrameInfoEntry>::const_iterator it = frameInfo.find(i);
-        if (it == frameInfo.end())
-            continue;
-
-        QByteArray atmp = (*it).toString(i, verbose).toLatin1();
-        out << atmp.constData() << " ";
-        if (comm_breaks)
-        {
-            frm_dir_map_t::const_iterator mit = comm_breaks->find(i);
-            if (mit != comm_breaks->end())
-            {
-                QString tmp = (verbose) ?
-                    toString((MarkTypes)*mit) : QString::number(*mit);
-                atmp = tmp.toLatin1();
-
-                out << atmp.constData();
-            }
-        }
-        out << "\n";
-    }*/
-
+	if (m_aggregator)
+		m_aggregator->print(out, verbose);
+	else
+		out << "\n(null)\n\n";
     out << std::flush;
 }

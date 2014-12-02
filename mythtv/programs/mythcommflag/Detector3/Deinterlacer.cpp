@@ -61,4 +61,10 @@ void Deinterlacer::setup(VideoFrame *frame)
 				.arg(m_filterName));
 		m_filterName.clear();
 	}
+	else
+	{
+		LOG(VB_GENERAL, LOG_INFO, 
+			QString("Will deinterlace with %1")
+				.arg(m_filterName));
+	}
 }

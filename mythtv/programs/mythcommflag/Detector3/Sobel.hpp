@@ -10,7 +10,7 @@ inline bool IsSobelEdgeAt(uint8_t const *buf,
 							uint32_t x,
 							uint32_t y,
 							uint32_t stride,
-							uint8_t threshold = 30)
+							uint8_t threshold = 40)
 {
     uint32_t center = y * stride + x;
     uint32_t above = center - stride;
