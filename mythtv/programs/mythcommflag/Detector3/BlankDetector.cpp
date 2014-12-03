@@ -42,9 +42,10 @@ void BlankDetector::processFrame(FrameMetadata &meta,
 			meta.brightnessVariance < m_maxVariance/2)
 	;
 	
-	
-	if (meta.brightMinX >= (width * 10/100) && meta.brightMinX <= (width * 15/100) &&
-		meta.brightMaxX >= (width * 85/100) && meta.brightMaxX <= (width * 90/100))
+	// 4:3 inside 16:9 is 12.5% on each side, 3:2 inside 16:9 is 7.8% on each side
+	// including fudge factor we do 6% to 14%
+	if (meta.brightMinX >= (width * 6/100) && meta.brightMinX <= (width * 14/100) &&
+		 meta.brightMaxX >= (width * 86/100) && meta.brightMaxX <= (width * 94/100))
 	{
 		// check for lines going down both sides of the frame
 		uint32_t total = 0, good = 0;
@@ -63,12 +64,19 @@ void BlankDetector::processFrame(FrameMetadata &meta,
 				++good;
 		}
 		
-		if (good > (total * 75 / 100))
+		if (good > total/2)
 			meta.format |= FF_PILLARBOX;
 	}
 	
-	if (meta.brightMinY >= (height * 10/100) && meta.brightMinY <= (height * 15/100) &&
-		meta.brightMaxY >= (height * 85/100) && meta.brightMaxY <= (height * 90/100))
+	if (meta.brightMinX >= (width * 6/100) && 
+		meta.brightMaxX <= (width * 94/100))
+	{
+		meta.format |= FF_MAYBE_PILLARBOX;
+	}
+	
+	// 16:9 inside 4:3 is 12.5% on each side, fudge makes it 11%-14%
+	if (meta.brightMinY >= (height * 11/100) && meta.brightMinY <= (height * 14/100) &&
+		meta.brightMaxY >= (height * 86/100) && meta.brightMaxY <= (height * 89/100))
 	{
 		// check for lines going across both top/bottom of the frame
 		uint32_t total = 0, good = 0;
@@ -87,7 +95,16 @@ void BlankDetector::processFrame(FrameMetadata &meta,
 				++good;
 		}
 		
-		if (good > (total * 75 / 100))
+		if (good > total/2)
 			meta.format |= FF_LETTERBOX;
 	}
+	
+	if (meta.brightMinY >= (height * 11/100) && 
+		meta.brightMaxY <= (height * 89/100))
+	{
+		meta.format |= FF_MAYBE_LETTERBOX;
+	}
+	
+	if (meta.blank)
+		meta.format |= FF_MAYBE_LETTERBOX|FF_MAYBE_PILLARBOX;
 }

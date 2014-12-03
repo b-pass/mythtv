@@ -72,6 +72,7 @@ private:
 	uint32_t m_maxSingleCommLength;
 	
 	FrameMetadata m_prev;
+	int m_currentFormat;
 	double m_frameRate;
 	bool m_logo;
 	bool m_scene;
