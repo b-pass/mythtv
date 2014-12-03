@@ -10,6 +10,7 @@
 
 FrameMetadataAggregator::FrameMetadataAggregator()
 {
+	m_currentFormat = FF_NORMAL;
 	m_frameRate = 1.0;
 	m_logo = false;
 	m_scene = false;
@@ -46,8 +47,37 @@ void FrameMetadataAggregator::add(FrameMetadata const &meta)
 		if (meta.aspect != m_prev.aspect)
 			seg.formatChanges++;
 		
-		if (meta.format != m_prev.format)
+		// Only change format when we are SURE it's different
+		int prevFormat = m_currentFormat;
+		
+		if (prevFormat & FF_LETTERBOX)
+		{
+			if (!(meta.format & (FF_LETTERBOX|FF_MAYBE_LETTERBOX)))
+				m_currentFormat &= ~FF_LETTERBOX;
+		}
+		else
+		{
+			if (meta.format & FF_LETTERBOX)
+				m_currentFormat |= FF_LETTERBOX;
+		}
+		
+		if (prevFormat & FF_PILLARBOX)
+		{
+			if (!(meta.format & (FF_PILLARBOX|FF_MAYBE_PILLARBOX)))
+				m_currentFormat &= ~FF_PILLARBOX;
+		}
+		else
+		{
+			if (meta.format & FF_PILLARBOX)
+				m_currentFormat |= FF_PILLARBOX;
+		}
+		
+		if (m_currentFormat != prevFormat)
 			seg.formatChanges++;
+	}
+	else
+	{
+		m_currentFormat = meta.format & (FF_PILLARBOX|FF_LETTERBOX);
 	}
 	
 	if (meta.scene)

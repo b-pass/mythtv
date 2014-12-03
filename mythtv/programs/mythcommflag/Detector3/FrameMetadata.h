@@ -10,10 +10,12 @@
 
 enum FrameFormat
 {
-	FF_NORMAL = 0,
-	FF_LETTERBOX = 1,
-	FF_PILLARBOX = 2,
-	FF_CRAPPYBOX = 3
+	FF_NORMAL    = 0,
+	FF_LETTERBOX = 0x1,
+	FF_PILLARBOX = 0x2,
+	
+	FF_MAYBE_LETTERBOX = 0x10,
+	FF_MAYBE_PILLARBOX = 0x20,
 };
 
 struct FrameMetadata

@@ -21,6 +21,8 @@
 #include "LogoDetector.h"
 #include "CommDetector3.h"
 
+#define FRAME_LOGGING
+
 CommDetector3::CommDetector3(SkipType commDetectMethod_in,
 								bool showProgress_in,
 								bool fullSpeed_in,
@@ -40,6 +42,7 @@ CommDetector3::CommDetector3(SkipType commDetectMethod_in,
 	, m_wantUpdates(false)
 	, m_needUpdate(false)
 {
+#ifdef FRAME_LOGGING
 	QString logFile;
 	if (chanid > 0)
 		logFile = QString("/tmp/mcf_%1_%2.log").arg(chanid).arg(m_start.toString("yyyyMMddhhmmss"));
@@ -47,6 +50,7 @@ CommDetector3::CommDetector3(SkipType commDetectMethod_in,
 		logFile = "/tmp/mcf_frames.log";
 	m_frameLog.open(logFile.toAscii().data());
 	m_frameLog << "# CD3 frame log generated " << MythDate::current().toString().toAscii().data() << std::endl;
+#endif
 }
 
 CommDetector3::~CommDetector3()
@@ -416,6 +420,12 @@ void CommDetector3::GetCommercialBreakList(frm_dir_map_t &marks)
 		m_aggregator->calculateBreakList(marks);
 	else
 		marks.clear();
+	
+	m_frameLog << std::endl << marks.size() << " marks:\n";
+	frm_dir_map_t::const_iterator it;
+	for (it = marks.begin(); it != marks.end(); ++it)
+		m_frameLog << "framenum: " << it.key() << "\tmarktype: " << *it << std::endl;
+	m_frameLog << std::endl;
 }
 
 void CommDetector3::recordingFinished(long long totalFileSize)
