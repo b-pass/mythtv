@@ -836,6 +836,12 @@ void RingBuffer::CreateReadAheadBuffer(void)
             newsize *= BUFFER_FACTOR_MATROSKA;
         if (unknownbitrate)
             newsize *= BUFFER_FACTOR_BITRATE;
+        
+        uint totalRam = sysconf(_SC_PHYS_PAGES)*sysconf(_SC_PAGE_SIZE);
+        if (newsize < totalRam/8)
+            newsize = totalRam / 8;
+        else if (newsize > totalRam / 2)
+            newsize = totalRam / 2;
     }
 
     // N.B. Don't try and make it smaller - bad things happen...
