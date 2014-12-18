@@ -1,6 +1,5 @@
 // Qt
 #include <QApplication>
-#include <QTimer>
 #include <QKeyEvent>
 #include <QString>
 
@@ -14,7 +13,6 @@
 #include "cecadapter.h"
 #include <vector>
 
-#define MIN_LIBCEC_VERSION 1
 #define MAX_CEC_DEVICES 10
 #define LOC QString("CECAdapter: ")
 
@@ -24,117 +22,108 @@ using namespace CEC;
 using namespace std;
 #include <libcec/cecloader.h>
 
-QMutex* CECAdapter::gLock = new QMutex(QMutex::Recursive);
+QMutex*         CECAdapter::gLock = new QMutex(QMutex::Recursive);
+QMutex*         CECAdapter::gHandleActionsLock = new QMutex();
+QWaitCondition* CECAdapter::gActionsReady = new QWaitCondition();
+
+#if CEC_LIB_VERSION_MAJOR < 2
+// A few defines taken from libcec.h v2
+#define CEC_MIN_HDMI_PORTNUMBER      1
+#define CEC_MAX_HDMI_PORTNUMBER      15
+// libcec1's callback parameters are pass-by-ref
+#define CEC_CALLBACK_PARAM_TYPE &
+#else
+// libcec2's callback parameters are pass-by-value
+#define CEC_CALLBACK_PARAM_TYPE 
+#endif
+
+// The libCEC callback functions
+static int CECLogMessageCallback(void *adapter, const cec_log_message CEC_CALLBACK_PARAM_TYPE message);
+static int CECKeyPressCallback(void *adapter, const cec_keypress CEC_CALLBACK_PARAM_TYPE keypress);
+static int CECCommandCallback(void *adapter, const cec_command CEC_CALLBACK_PARAM_TYPE command);
+
+#if CEC_LIB_VERSION_MAJOR >= 2
+static int CECAlertCallback(void *adapter, const libcec_alert alert, const libcec_parameter CEC_CALLBACK_PARAM_TYPE data);
+static void CECSourceActivatedCallback(void *adapter, const cec_logical_address address, const uint8_t activated);
+#endif
 
 class CECAdapterPriv
 {
   public:
     CECAdapterPriv()
-      : adapter(NULL), defaultDevice("auto"), defaultHDMIPort(1),
-        defaultDeviceID(CECDEVICE_PLAYBACKDEVICE1), timer(NULL), valid(false),
+      : adapter(NULL), valid(false),
         powerOffTV(false),  powerOffTVAllowed(false), powerOffTVOnExit(false),
         powerOnTV(false),   powerOnTVAllowed(false),  powerOnTVOnStart(false),
         switchInput(false), switchInputAllowed(true)
     {
-    }
-
-    static QString addressToString(enum cec_logical_address addr, bool source)
-    {
-        switch (addr)
-        {
-            case CECDEVICE_UNKNOWN:          return QString("Unknown");
-            case CECDEVICE_TV:               return QString("TV");
-            case CECDEVICE_RECORDINGDEVICE1: return QString("RecordingDevice1");
-            case CECDEVICE_RECORDINGDEVICE2: return QString("RecordingDevice2");
-            case CECDEVICE_RECORDINGDEVICE3: return QString("RecordingDevice3");
-            case CECDEVICE_TUNER1:           return QString("Tuner1");
-            case CECDEVICE_TUNER2:           return QString("Tuner2");
-            case CECDEVICE_TUNER3:           return QString("Tuner3");
-            case CECDEVICE_TUNER4:           return QString("Tuner4");
-            case CECDEVICE_PLAYBACKDEVICE1:  return QString("PlaybackDevice1");
-            case CECDEVICE_PLAYBACKDEVICE2:  return QString("PlaybackDevice2");
-            case CECDEVICE_PLAYBACKDEVICE3:  return QString("PlaybackDevice3");
-            case CECDEVICE_AUDIOSYSTEM:      return QString("Audiosystem");
-            case CECDEVICE_RESERVED1:        return QString("Reserved1");
-            case CECDEVICE_RESERVED2:        return QString("Reserved2");
-            case CECDEVICE_FREEUSE:          return QString("FreeUse");
-            case CECDEVICE_UNREGISTERED:
-            //case CECDEVICE_BROADCAST:
-                return source ? QString("Unregistered") : QString("Broadcast");
-        }
-        return QString("Invalid");
-    }
-
-    // N.B. This may need revisiting when the UI is added
-    static QStringList GetDeviceList(void)
-    {
-        QStringList results;
-        cec_device_type_list list;
-        list.Clear();
-        list.Add(CEC_DEVICE_TYPE_PLAYBACK_DEVICE);
-        ICECAdapter *adapter = LibCecInit("MythTV", list);
-        if (!adapter)
-            return results;
-        cec_adapter *devices = new cec_adapter[MAX_CEC_DEVICES];
-        uint8_t num_devices = adapter->FindAdapters(devices, MAX_CEC_DEVICES, NULL);
-        if (num_devices < 1)
-            return results;
-        for (uint8_t i = 0; i < num_devices; i++)
-            results << QString::fromAscii(devices[i].comm);
-        UnloadLibCec(adapter);
-        return results;
+#if CEC_LIB_VERSION_MAJOR < 2
+        // libcec1 has this as a POD struct, with no
+        // automatic initialisation.
+        // And no .Clear() method...
+        memset(&callbacks, 0, sizeof(callbacks));
+#endif
     }
 
     bool Open(void)
     {
         // get settings
-        // N.B. these do not currently work as there is no UI
-        defaultDevice     = gCoreContext->GetSetting(LIBCEC_DEVICE, "auto").trimmed();
-        QString hdmi_port = gCoreContext->GetSetting(LIBCEC_PORT, "auto");
-        QString device_id = gCoreContext->GetSetting(LIBCEC_DEVICEID, "auto");
+        // N.B. these need to be set manually since there is no UI
+        QString defaultDevice   = gCoreContext->GetSetting(LIBCEC_DEVICE, "auto").trimmed();
+        // Note - if libcec supports automatic detection via EDID then
+        // these settings are not used
+        // The logical address of the HDMI device Myth is connected to
+        QString base_dev        = gCoreContext->GetSetting(LIBCEC_BASE, "auto").trimmed();
+        // The number of the HDMI port Myth is connected to
+        QString hdmi_port       = gCoreContext->GetSetting(LIBCEC_PORT, "auto").trimmed();
+
         powerOffTVAllowed = (bool)gCoreContext->GetNumSetting(POWEROFFTV_ALLOWED, 1);
         powerOffTVOnExit  = (bool)gCoreContext->GetNumSetting(POWEROFFTV_ONEXIT, 1);
         powerOnTVAllowed  = (bool)gCoreContext->GetNumSetting(POWERONTV_ALLOWED, 1);
         powerOnTVOnStart  = (bool)gCoreContext->GetNumSetting(POWERONTV_ONSTART, 1);
 
-        defaultHDMIPort = 1;
+        // create adapter interface
+        libcec_configuration configuration;
+#if CEC_LIB_VERSION_MAJOR < 2
+        // libcec1 has this as a POD struct, with no
+        // automatic initialisation
+        configuration.Clear();
+#endif
+        strcpy(configuration.strDeviceName, "MythTV");
+        configuration.deviceTypes.Add(CEC_DEVICE_TYPE_PLAYBACK_DEVICE);
+
+        if ("auto" != base_dev)
+        {
+            int base = base_dev.toInt();
+            if (base >= 0 && base < CECDEVICE_BROADCAST) {
+                configuration.baseDevice = (cec_logical_address)base;
+            }
+        }
+
         if ("auto" != hdmi_port)
         {
-            defaultHDMIPort = hdmi_port.toInt();
-            if (defaultHDMIPort < 1 || defaultHDMIPort > 3)
-                defaultHDMIPort = 1;
-        }
-        defaultHDMIPort = defaultHDMIPort << 12;
-
-        defaultDeviceID = CECDEVICE_PLAYBACKDEVICE1;
-        if ("auto" != device_id)
-        {
-            int id = device_id.toInt();
-            if (id < 1 || id > 3)
-                id = 1;
-            defaultDeviceID = (id == 1) ? CECDEVICE_PLAYBACKDEVICE1 :
-                             ((id == 2) ? CECDEVICE_PLAYBACKDEVICE2 :
-                                          CECDEVICE_PLAYBACKDEVICE3);
+            int defaultHDMIPort = hdmi_port.toInt();
+            if (defaultHDMIPort >= CEC_MIN_HDMI_PORTNUMBER && defaultHDMIPort <= CEC_MAX_HDMI_PORTNUMBER) {
+                configuration.iHDMIPort = defaultHDMIPort;
+            }
         }
 
-        // create adapter interface
-        cec_device_type_list list;
-        list.Clear();
-        list.Add(CEC_DEVICE_TYPE_PLAYBACK_DEVICE);
-        adapter = LibCecInit("MythTV", list);
+        // Set up the callbacks
+        callbacks.CBCecLogMessage = &CECLogMessageCallback;
+        callbacks.CBCecKeyPress   = &CECKeyPressCallback;
+        callbacks.CBCecCommand    = &CECCommandCallback;
+#if CEC_LIB_VERSION_MAJOR >= 2
+        callbacks.CBCecAlert      = &CECAlertCallback;
+        callbacks.CBCecSourceActivated = &CECSourceActivatedCallback;
+#endif
+        configuration.callbackParam = this;
+        configuration.callbacks = &callbacks;
+
+        // and initialise
+        adapter = LibCecInitialise(&configuration);
 
         if (!adapter)
         {
             LOG(VB_GENERAL, LOG_ERR, LOC + "Failed to load libcec.");
-            return false;
-        }
-
-        if (adapter->GetMinLibVersion() > MIN_LIBCEC_VERSION)
-        {
-            LOG(VB_GENERAL, LOG_ERR, LOC +
-                QString("The installed libCEC supports version %1 and above. "
-                        "This version of MythTV only supports version %2.")
-                .arg(adapter->GetMinLibVersion()).arg(MIN_LIBCEC_VERSION));
             return false;
         }
 
@@ -178,24 +167,17 @@ class CECAdapterPriv
 
         LOG(VB_GENERAL, LOG_INFO, LOC + "Opened CEC device.");
 
+        // all good to go
+        valid = true;
+
         // turn on tv (if configured)
         powerOnTV = powerOnTVOnStart;
-        HandleActions();
-
-        // get the vendor ID (for non-standard implementations)
-        adapter->GetDeviceVendorId(CECDEVICE_TV);
-
-        // set the physical address
-        adapter->SetPhysicalAddress(defaultHDMIPort);
-
-        // set the logical address
-        adapter->SetLogicalAddress(defaultDeviceID);
 
         // switch input (if configured)
         switchInput = true;
+
         HandleActions();
 
-        valid = true;
         return true;
     }
 
@@ -210,7 +192,6 @@ class CECAdapterPriv
 
             // delete adapter
             adapter->Close();
-            LogMessages();
             UnloadLibCec(adapter);
 
             LOG(VB_GENERAL, LOG_INFO, LOC + "Closing down CEC.");
@@ -219,68 +200,54 @@ class CECAdapterPriv
         adapter = NULL;
     }
 
-    void LogMessages(void)
+    int LogMessage(const cec_log_message &message)
     {
-        if (!adapter || !valid)
-            return;
-
-        cec_log_message message;
-        while (adapter->GetNextLogMessage(&message))
+        QString msg(message.message);
+        int lvl = LOG_UNKNOWN;
+        switch (message.level)
         {
-            QString msg(message.message);
-            int lvl = LOG_UNKNOWN;
-            switch (message.level)
-            {
             case CEC_LOG_ERROR:   lvl = LOG_ERR;     break;
             case CEC_LOG_WARNING: lvl = LOG_WARNING; break;
             case CEC_LOG_NOTICE:  lvl = LOG_INFO;    break;
             case CEC_LOG_DEBUG:   lvl = LOG_DEBUG;   break;
-            }
-            LOG(VB_GENERAL, lvl, LOC + QString("%1").arg(msg));
         }
+        LOG(VB_GENERAL, lvl, LOC + QString("%1").arg(msg));
+        return 1;
     }
 
-    void HandleCommands(void)
+    // NOTE - libcec2 changes the callbacks
+    // to be pass-by-value.
+    // For simplicity, this function remains as pass-by-ref
+    int HandleCommand(const cec_command &command)
     {
         if (!adapter || !valid)
-            return;
+            return 0;
 
-        LogMessages();
+        LOG(VB_GENERAL, LOG_DEBUG, LOC +
+            QString("Command %1 from '%2' (%3) - destination '%4' (%5)")
+            .arg(command.opcode)
+            .arg(adapter->ToString(command.initiator))
+            .arg(command.initiator)
+            .arg(adapter->ToString(command.destination))
+            .arg(command.destination));
 
-        cec_command command;
-        while (adapter->GetNextCommand(&command))
+        switch (command.opcode)
         {
-            LOG(VB_GENERAL, LOG_DEBUG, LOC +
-                QString("Command %1 from '%2' (%3) - destination '%4' (%5)")
-                .arg(command.opcode)
-                .arg(addressToString(command.initiator, true))
-                .arg(command.initiator)
-                .arg(addressToString(command.destination, false))
-                .arg(command.destination));
-
-            switch (command.opcode)
-            {
-                // TODO
-                default:
-                    break;
-            }
+            // TODO
+            default:
+                break;
         }
-
-        LogMessages();
+        return 1;
     }
 
-    void HandleKeyPresses(void)
+    int HandleKeyPress(const cec_keypress &key)
     {
         if (!adapter || !valid)
-            return;
-
-        cec_keypress key;
-        if (!adapter->GetNextKeypress(&key))
-            return;
+            return 0;
 
         // Ignore key down events and wait for the key 'up'
         if (key.duration < 1)
-            return;
+            return 1;
 
         QString code;
         int action = 0;
@@ -595,15 +562,94 @@ class CECAdapterPriv
             .arg(code).arg(0 == action ? "(Not actioned)" : ""));
 
         if (0 == action)
-            return;
+            return 1;
 
         GetMythUI()->ResetScreensaver();
         QKeyEvent* ke = new QKeyEvent(QEvent::KeyPress, action, Qt::NoModifier);
         qApp->postEvent(GetMythMainWindow(), (QEvent*)ke);
 
-        LogMessages();
+        return 1;
     }
 
+#if CEC_LIB_VERSION_MAJOR >= 2
+    int HandleAlert(const libcec_alert alert, const libcec_parameter &data)
+    {
+        // These aren't handled yet
+        // Note that we *DON'T* want to just show these
+        // to the user in a popup, because some (eg prompting about firmware
+        // upgrades) aren't appropriate.
+        // Ideally we'd try to handle this, eg by reopening the adapter
+        // in a separate thread if it lost the connection....
+
+        QString param;
+        switch (data.paramType)
+        {
+            case CEC_PARAMETER_TYPE_STRING:
+                param = QString(": %1").arg((char*)data.paramData);
+                break;
+            case CEC_PARAMETER_TYPE_UNKOWN: /* libcec typo */
+            default:
+                if (data.paramData != NULL)
+                {
+                    param = QString(": UNKNOWN param has type %1").arg(data.paramType);
+                }
+                break;
+        }
+
+        // There is no ToString method for libcec_alert...
+        // Plus libcec adds new values in minor releases (eg 2.1.1)
+        // but doesn't provide a #define for the last digit...
+        // Besides, it makes sense to do this, since we could be compiling
+        // against an older version than we're running against
+#if CEC_LIB_VERSION_MAJOR == 2 && CEC_LIB_VERSION_MINOR < 1
+// since 2.0.4
+#define CEC_ALERT_PHYSICAL_ADDRESS_ERROR        4
+#endif
+#if CEC_LIB_VERSION_MAJOR == 2 && CEC_LIB_VERSION_MINOR < 2
+// since 2.1.1
+#define CEC_ALERT_TV_POLL_FAILED                5
+#endif
+        switch (alert)
+        {
+            case CEC_ALERT_SERVICE_DEVICE:
+                LOG(VB_GENERAL, LOG_INFO, LOC + QString("CEC device service message") + param);
+                break;
+            case CEC_ALERT_CONNECTION_LOST:
+                LOG(VB_GENERAL, LOG_ERR, LOC + QString("CEC device connection list") + param);
+                break;
+            case CEC_ALERT_PERMISSION_ERROR:
+            case CEC_ALERT_PORT_BUSY:
+                /* Don't log due to possible false positives on the initial
+                 * open. libcec will log via the logging callback anyway
+                 */
+                break;
+            case CEC_ALERT_PHYSICAL_ADDRESS_ERROR:
+                LOG(VB_GENERAL, LOG_ERR, LOC + QString("CEC physical address error") + param);
+                break;
+            case CEC_ALERT_TV_POLL_FAILED:
+                LOG(VB_GENERAL, LOG_WARNING, LOC + QString("CEC device can't poll TV") + param);
+                break;
+            default:
+                LOG(VB_GENERAL, LOG_WARNING, LOC + QString("UNKNOWN CEC device alert %1").arg(alert) + param);
+                break;
+        }
+
+        return 1;
+    }
+
+    void HandleSourceActivated(const cec_logical_address address, const uint8_t activated)
+    {
+        if (!adapter || !valid)
+            return;
+
+        LOG(VB_GENERAL, LOG_INFO, LOC + QString("Source %1 %2").arg(adapter->ToString(address)).arg(activated ? "Activated" : "Deactivated"));
+
+        if (activated)
+            GetMythUI()->ResetScreensaver();
+    }
+#endif
+
+    ICECAdapter *adapter;
     void HandleActions(void)
     {
         if (!adapter || !valid)
@@ -629,7 +675,7 @@ class CECAdapterPriv
         // HDMI input
         if (switchInput && switchInputAllowed)
         {
-            if (adapter->SetActiveView())
+            if (adapter->SetActiveSource())
                 LOG(VB_GENERAL, LOG_INFO, LOC + "Asked TV to switch to this input.");
             else
                 LOG(VB_GENERAL, LOG_ERR,  LOC + "Failed to switch to this input.");
@@ -638,15 +684,9 @@ class CECAdapterPriv
         powerOffTV  = false;
         powerOnTV   = false;
         switchInput = false;
-
-        LogMessages();
     }
 
-    ICECAdapter *adapter;
-    QString      defaultDevice;
-    int          defaultHDMIPort;
-    cec_logical_address defaultDeviceID;
-    QTimer      *timer;
+    ICECCallbacks callbacks;
     bool         valid;
     bool         powerOffTV;
     bool         powerOffTVAllowed;
@@ -657,12 +697,6 @@ class CECAdapterPriv
     bool         switchInput;
     bool         switchInputAllowed;
 };
-
-QStringList CECAdapter::GetDeviceList(void)
-{
-    QMutexLocker lock(gLock);
-    return CECAdapterPriv::GetDeviceList();
-}
 
 CECAdapter::CECAdapter() : MThread("CECAdapter"), m_priv(new CECAdapterPriv)
 {
@@ -679,25 +713,28 @@ CECAdapter::CECAdapter() : MThread("CECAdapter"), m_priv(new CECAdapterPriv)
     if (!m_priv->Open())
         return;
 
-    // create process timer
-    m_priv->timer = new QTimer(this);
-    QObject::connect(m_priv->timer, SIGNAL(timeout()), this, SLOT(Process()));
-    m_priv->timer->start(10);
-
     // start thread
     LOG(VB_GENERAL, LOG_DEBUG, LOC + "Starting thread.");
     start();
 }
 
+void CECAdapter::run()
+{
+    for (;;) {
+        // Note that a lock is used because the QWaitCondition needs it
+        // None of the other HandleActions callers need the lock because
+        // they call HandleActions at open/close time, when
+        // nothing else can be calling it....
+        gHandleActionsLock->lock();
+        gActionsReady->wait(gHandleActionsLock);
+        m_priv->HandleActions();
+        gHandleActionsLock->unlock();
+    }
+}
+
 CECAdapter::~CECAdapter()
 {
     QMutexLocker lock(gLock);
-
-    // delete process timer
-    if (m_priv->timer)
-        m_priv->timer->stop();
-    delete m_priv->timer;
-    m_priv->timer = NULL;
 
     // stop thread
     if (isRunning())
@@ -723,13 +760,32 @@ void CECAdapter::Action(const QString &action)
         m_priv->powerOnTV = true;
     else if (ACTION_TVPOWEROFF == action)
         m_priv->powerOffTV = true;
+	gActionsReady->wakeAll();
 }
 
-void CECAdapter::Process(void)
+static int CECLogMessageCallback(void *adapter, const cec_log_message CEC_CALLBACK_PARAM_TYPE message)
 {
-    gLock->lock();
-    m_priv->HandleCommands();
-    m_priv->HandleKeyPresses();
-    m_priv->HandleActions();
-    gLock->unlock();
+    return ((CECAdapterPriv*)adapter)->LogMessage(message);
 }
+
+static int CECKeyPressCallback(void *adapter, const cec_keypress CEC_CALLBACK_PARAM_TYPE keypress)
+{
+    return ((CECAdapterPriv*)adapter)->HandleKeyPress(keypress);
+}
+
+static int CECCommandCallback(void *adapter, const cec_command CEC_CALLBACK_PARAM_TYPE command)
+{
+    return ((CECAdapterPriv*)adapter)->HandleCommand(command);
+}
+
+#if CEC_LIB_VERSION_MAJOR >= 2
+static int CECAlertCallback(void *adapter, const libcec_alert alert, const libcec_parameter CEC_CALLBACK_PARAM_TYPE data)
+{
+    return ((CECAdapterPriv*)adapter)->HandleAlert(alert, data);
+}
+
+static void CECSourceActivatedCallback(void *adapter, const cec_logical_address address, const uint8_t activated)
+{
+    ((CECAdapterPriv*)adapter)->HandleSourceActivated(address, activated);
+}
+#endif

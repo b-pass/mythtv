@@ -5478,7 +5478,7 @@ int main(void) {
     if (CEC_LIB_VERSION_MAJOR < 1 || (CEC_LIB_VERSION_MAJOR == 1 &&
                                       CEC_LIB_VERSION_MINOR < 5))
         return 0;
-    return (long) LibCecInit;
+    return 1;
 }
 EOF
 fi
