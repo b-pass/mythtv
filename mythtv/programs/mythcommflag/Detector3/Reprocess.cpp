@@ -8,13 +8,14 @@
 
 #include "mythcontext.h"
 #include "mythversion.h"
+#include "mythlogging.h"
 
 #include "FrameMetadataAggregator.h"
 
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc, argv);
-    
+
     gContext = new MythContext(MYTH_BINARY_VERSION);
     if (!gContext->Init( false, /*use gui*/
                          false, /*prompt for backend*/
@@ -23,25 +24,46 @@ int main(int argc, char *argv[])
 	{
 		return 1;
 	}
+    
+    //verboseMask = VB_STDIO|VB_FLUSH|VB_GENERAL|VB_COMMFLAG;
+    //logStart(QString(), 0, 0, -2, LOG_DEBUG, false, false, true);
 	
-	if (argc != 2)
+	if (argc < 2)
 	{
-		std::cerr << "Usage: " << argv[0] << " frame.log" << std::endl;
+		std::cerr << "Usage: " << argv[0] << "[-nologo] [-noscene] frame.log" << std::endl;
 		return 1;
 	}
+
+    bool logoDet = true, sceneDet = true;
+    char const *filename = "/dev/null";
+
+    for (int i = 1; i < argc; ++i)
+    {
+        if (argv[i][0] == '-')
+        {
+            if (strcasecmp(argv[i], "-nologo") == 0)
+                logoDet = false;
+            else if (strcasecmp(argv[i], "-noscene") == 0)
+                sceneDet = false;
+        }
+        else
+        {
+            filename = argv[i];
+        }
+    }
 	
-	std::ifstream ifs(argv[1]);
+	std::ifstream ifs(filename);
 	ifs.peek();
 	if (!ifs)
 	{
-		std::cerr << "Failed to read " << argv[1] << std::endl;
+		std::cerr << "Failed to read " << filename << std::endl;
 		return 1;
 	}
 	
 	std::cerr << "Reading... " << std::endl;
 	
 	FrameMetadataAggregator aggregator;
-	aggregator.configure(30, true, true);
+	aggregator.configure(30, logoDet, sceneDet);
 	
 	uint64_t frameCount = 0;
 	while (!!ifs)
@@ -64,7 +86,7 @@ int main(int argc, char *argv[])
 			ifs.ignore(4);
 			double fps = 30;
 			ifs >> fps;
-			aggregator.configure(fps, true, true);
+			aggregator.configure(fps, logoDet, sceneDet);
 			continue;
 		}
 		
@@ -77,10 +99,7 @@ int main(int argc, char *argv[])
 		FrameMetadata meta;
 		ifs >> meta;
 		if (!ifs)
-		{
-			std::cerr << "Bad read on frame meta" << std::endl;
 			break;
-		}
 		
 		aggregator.add(meta);
 		++frameCount;
