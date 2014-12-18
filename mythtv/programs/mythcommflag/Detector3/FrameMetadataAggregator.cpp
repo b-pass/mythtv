@@ -318,12 +318,15 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 
 void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
 {
+    const bool scoreDebugging = false;
+    
 	seg.score = 0;
 	
 	uint64_t frameCount = seg.frameStop - seg.frameStart + 1;
 	double segTime = frameCount / m_frameRate;
 	if (segTime > m_maxBreakLength)
 	{
+        if (scoreDebugging) std::cerr << "Segment too long to be a break: +1000" << std::endl;
 		seg.score = 1000;
 		return;
 	}
@@ -335,6 +338,7 @@ void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
 		case 59: case 60: case 61:
 		case 89: case 90: case 91:
 		case 119:case 120:case 121:
+            if (scoreDebugging) std::cerr << "Segment common break length (" << round(segTime) << "): -15" << std::endl;
 			// very common lengths 
 			seg.score -= 15;
 			break;;
@@ -344,42 +348,69 @@ void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
 		case 20:
 		case 40:
 		case 45:
+            if (scoreDebugging) std::cerr << "Segment semi-common break length (" << round(segTime) << "): -10" << std::endl;
 			// less common, but still common-ish
 			seg.score -= 10;
 			break;
 		
 		default:
 			if (segTime < m_minShowLength)
-				seg.score -= 5;
+            {
+                if (scoreDebugging) std::cerr << "Segment shortish (" << round(segTime) << "): -5" << std::endl;
+                seg.score -= 5;
+            }
 			else if (m_maxSingleCommLength && segTime > m_maxSingleCommLength)
+            {
+                if (scoreDebugging) std::cerr << "Segment longish (" << round(segTime) << "): +100" << std::endl;
 				seg.score += 100;
+            }
 			else if (segTime > 121)
+            {
+                if (scoreDebugging) std::cerr << "Segment long (" << round(segTime) << "): +15" << std::endl;
 				seg.score += 15;
+            }
 			break;
 	}
 	
 	if (m_logo)
 	{
+        int logoScore;
 		if (segTime < 5)
-			seg.score += (signed(seg.logoCount * 100 / frameCount) - 50) / 5;
+			logoScore = (signed(seg.logoCount * 100 / frameCount) - 50) / 5;
 		else
-			seg.score += signed(seg.logoCount * 100 / frameCount) - 30;
+			logoScore = signed(seg.logoCount * 100 / frameCount) - 30;
+        seg.score += logoScore;
+        if (scoreDebugging) std::cerr << "Segment logo score: " << logoScore << std::endl;
 	}
 	
 	if (m_scene)
 	{
 		double secs_per_scene = seg.sceneCount ? segTime / seg.sceneCount : segTime;
 		if (secs_per_scene < 2 && segTime >= 1)
+        {
+            if (scoreDebugging) std::cerr << "Very fast scene change (" << secs_per_scene << "): -15" << std::endl;
 			seg.score -= 15;
+        }
 		else if (secs_per_scene < 3)
+        {
+            if (scoreDebugging) std::cerr << "Fast scene change (" << secs_per_scene << "): -10" << std::endl;
 			seg.score -= 10;
+        }
 		else if (secs_per_scene >= 6)
+        {
+            if (scoreDebugging) std::cerr << "Very Slow scene change (" << secs_per_scene << "): +15" << std::endl;
 			seg.score += 15;
+        }
 		else if (secs_per_scene > 5)
+        {
+            if (scoreDebugging) std::cerr << "Slow scene change (" << secs_per_scene << "): +10" << std::endl;
 			seg.score += 10;
+        }
 	}
 	
-	seg.score -= std::min(10u, (seg.formatChanges + seg.sizeChanges)) * 10;
+	int formatScore = std::min(10u, (seg.formatChanges + seg.sizeChanges)) * 10;
+    if (scoreDebugging) std::cerr << "Format changes: " << -formatScore << std::endl;
+    seg.score -= formatScore;
 }
 
 void FrameMetadataAggregator::print(std::ostream &out, bool verbose) const
@@ -422,14 +453,14 @@ void FrameMetadataAggregator::dump(
 		
 		uint64_t totalFrames = seg.frameStop - seg.frameStart + 1;
 		double totalTime = totalFrames / m_frameRate;
-		double secs_per_scene = seg.sceneCount ? totalTime / seg.sceneCount : -1.0;
+		double secs_per_scene = m_scene && seg.sceneCount ? totalTime / seg.sceneCount : -1.0;
 		
 		snprintf(buffer, sizeof(buffer),
 			"%6ld-%6ld (%5.01lfs): %-6d = %5.01lf, %3ld%%, %1d %s\n",
 			seg.frameStart, seg.frameStop, totalTime,
 			seg.score,
 			secs_per_scene,
-			seg.logoCount * 100 / (totalFrames ? totalFrames : 1),
+			m_logo ? seg.logoCount * 100 / (totalFrames ? totalFrames : 1) : 0,
 			seg.formatChanges + seg.sizeChanges,
 			recalc);
 		out << buffer;
