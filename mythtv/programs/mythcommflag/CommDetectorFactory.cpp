@@ -27,7 +27,7 @@ CommDetectorFactory::makeCommDetector(
                                       recordingStartedAt, recordingStopsAt);
     }
 
-    if ((commDetectMethod & COMM_DETECT_2))
+/*    if ((commDetectMethod & COMM_DETECT_2))
     {
         return new CommDetector2(
             commDetectMethod, showProgress, fullSpeed,
@@ -41,14 +41,14 @@ CommDetectorFactory::makeCommDetector(
                 player, chanid, startedAt, stopsAt, recordingStartedAt, recordingStopsAt);
     }
 
-    if ((commDetectMethod & COMM_DETECT_3))
+    if ((commDetectMethod & COMM_DETECT_3))*/
     {
         return new CommDetector3(commDetectMethod, showProgress, fullSpeed,
                 player, chanid, startedAt, stopsAt, recordingStartedAt, recordingStopsAt);
     }
     
-    return new ClassicCommDetector(commDetectMethod, showProgress, fullSpeed,
-            player, startedAt, stopsAt, recordingStartedAt, recordingStopsAt);
+//    return new ClassicCommDetector(commDetectMethod, showProgress, fullSpeed,
+//            player, startedAt, stopsAt, recordingStartedAt, recordingStopsAt);
 }
 
 

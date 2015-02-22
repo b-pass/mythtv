@@ -4447,8 +4447,8 @@ die_license_disabled version3 libvo_amrwbenc
 
 enabled version3 && { enabled gpl && enable gplv3 || enable lgplv3; }
 
-disabled optimizations || check_cflags -fomit-frame-pointer
-disabled optimizations || check_cxxflags -fomit-frame-pointer
+#disabled optimizations || check_cflags -fomit-frame-pointer
+#disabled optimizations || check_cxxflags -fomit-frame-pointer
 
 enable_pic() {
     enable pic
@@ -5262,6 +5262,7 @@ check_cflags -Wno-parentheses
 disabled icc && check_cflags -Wno-switch
 check_cflags -Wno-format-zero-length
 ! disabled optimizations && check_cflags -Wdisabled-optimization
+! disabled optimizations && check_cxxflags -Wdisabled-optimization
 check_cflags -Wpointer-arith
 disabled icc && check_cflags -Wredundant-decls
 check_cflags -Wno-pointer-sign
@@ -5324,13 +5325,14 @@ fi
 
 check_optflags(){
     check_cflags "$@"
+    check_cxxflags "$@"
     enabled lto && check_ldflags "$@"
 }
-
 
 if enabled lto; then
     test "$cc_type" != "$ld_type" && die "LTO requires same compiler and linker"
     check_cflags  -flto
+    check_cxxflags  -flto
     check_ldflags -flto $cpuflags
 fi
 
@@ -5572,15 +5574,22 @@ fi
 
 if [ -n "$optflags" ]; then
     add_cflags $optflags
+    add_cxxflags $optflags
 elif enabled small; then
     add_cflags $cflags_size
+    add_cxxflags $cflags_size
 elif enabled optimizations; then
     add_cflags $cflags_speed
+    add_cxxflags $cflags_speed
 else
     add_cflags $cflags_noopt
+    add_cxxflags $cflags_noopt
 fi
 check_cflags -fno-math-errno
 check_cflags -fno-signed-zeros
+check_cxxflags -fno-math-errno
+check_cxxflags -fno-signed-zeros
+
 check_cc -mno-red-zone <<EOF && noredzone_flags="-mno-red-zone"
 int x;
 EOF
