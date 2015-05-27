@@ -1459,6 +1459,15 @@ int main(int argc, char **argv)
     bool bPromptForBackend    = false;
     bool bBypassAutoDiscovery = false;
 
+    new QApplication(argc, argv);
+
+#ifdef Q_OS_MAC
+    // Without this, we can't set focus to any of the CheckBoxSetting, and most
+    // of the MythPushButton widgets, and they don't use the themed background.
+    QApplication::setDesktopSettingsAware(false);
+#endif
+    QCoreApplication::setApplicationName(MYTH_APPNAME_MYTHFRONTEND);
+
     MythFrontendCommandLineParser cmdline;
     if (!cmdline.Parse(argc, argv))
     {
@@ -1479,14 +1488,6 @@ int main(int argc, char **argv)
     }
 
     CleanupGuard callCleanup(cleanup);
-
-#ifdef Q_OS_MAC
-    // Without this, we can't set focus to any of the CheckBoxSetting, and most
-    // of the MythPushButton widgets, and they don't use the themed background.
-    QApplication::setDesktopSettingsAware(false);
-#endif
-    new QApplication(argc, argv);
-    QCoreApplication::setApplicationName(MYTH_APPNAME_MYTHFRONTEND);
 
 #ifdef Q_OS_MAC
     QString path = QCoreApplication::applicationDirPath();
@@ -1587,11 +1588,11 @@ int main(int argc, char **argv)
         return GENERIC_EXIT_OK;
     }
 
-    if (setuid(getuid()) != 0)
+    /*if (setuid(getuid()) != 0)
     {
         LOG(VB_GENERAL, LOG_ERR, "Failed to setuid(), exiting.");
         return GENERIC_EXIT_NOT_OK;
-    }
+    }*/
 
 #ifdef USING_LIBDNS_SD
     // this needs to come after gCoreContext has been initialised
