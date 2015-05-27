@@ -1,0 +1,10 @@
+#!/bin/sh
+
+COMPILE="-DSTANDALONE -DTARGET_POSIX -D_LINUX -D_REENTRANT -DHAVE_LIBOPENMAX=2 -DOMX -DOMX_SKIP64BIT -pipe -DUSE_EXTERNAL_OMX -DHAVE_LIBBCM_HOST -DUSE_EXTERNAL_LIBBCM_HOST -DUSE_VCHIQ_ARM -Wno-psabi -mcpu=cortex-a7 -mfpu=neon-vfpv4 -DNDEBUG -ggdb -ftree-vectorize"
+LINK="-L/opt/vc/lib/ -lGLESv2 -lEGL -lopenmaxil -lbcm_host -lvcos -lvchiq_arm -Wl,-rpath-link,/opt/vc/lib"
+INCLUDE="-I/opt/vc/include/ -I/opt/vc/include/interface/vcos/pthreads -I/opt/vc/include/interface/vmcs_host/linux"
+
+echo ./configure --compile-type=release --extra-cflags="$COMPILE $INCLUDE" --extra-cxxflags="-O3 $COMPILE $INCLUDE" --extra-ldflags="$LINK" --prefix=/usr --cpu=cortex-a7 --tune=cortex-a7 --disable-vaapi --disable-stripping --python=python2
+
+exec ./configure --compile-type=release --extra-cflags="$COMPILE $INCLUDE" --extra-cxxflags="-O3 $COMPILE $INCLUDE" --extra-ldflags="$LINK" --prefix=/usr --cpu=cortex-a7 --tune=cortex-a7 --disable-vaapi --disable-stripping --python=python2
+

@@ -7,7 +7,7 @@
 #if defined( QT_CORE_LIB ) && defined( __cplusplus )
 # include <QtCore/qglobal.h>
 # ifdef MTV_API
-#  define MTV_PUBLIC Q_DECL_EXPORT
+#  define MTV_PUBLIC Q_DECL_EXPORT __attribute__ ((visibility ("default")))
 # else
 #  define MTV_PUBLIC Q_DECL_IMPORT
 # endif

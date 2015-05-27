@@ -5436,10 +5436,10 @@ EOF
 fi
 
 # Disable OpenGL ES support if Qt does not support it
-QTGL=$(pkg-config --list-all | grep Qt | grep OpenGL | awk '{print $1}')
-if $(pkg-config --variable=qt_config $QTGL | grep -qv opengles2) ; then
-    disable opengles
-fi
+#QTGL=$(pkg-config --list-all | grep Qt | grep OpenGL | awk '{print $1}')
+#if $(pkg-config --variable=qt_config $QTGL | grep -qv opengles2) ; then
+#    disable opengles
+#fi
 
 if enabled firewire; then
     fwlibs=""
