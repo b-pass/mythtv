@@ -1,37 +1,36 @@
-#ifndef _CLASSICLOGOGEDETECTOR_H_
-#define _CLASSICLOGOGEDETECTOR_H_
+#ifndef _NEXTGENLOGOGEDETECTOR_H_
+#define _NEXTGENLOGOGEDETECTOR_H_
 
-#include "LogoDetectorBase.h"
+#include "Classic/LogoDetectorBase.h"
 
 typedef struct edgemaskentry EdgeMaskEntry;
 typedef struct VideoFrame_ VideoFrame;
-class ClassicCommDetector;
+class NextgenCommDetector;
 
-class ClassicLogoDetector : public LogoDetectorBase
+class NextgenLogoDetector : public LogoDetectorBase
 {
   public:
-    ClassicLogoDetector(ClassicCommDetector* commDetector,unsigned int width,
+    NextgenLogoDetector(NextgenCommDetector* commDetector,unsigned int width,
         unsigned int height, unsigned int commdetectborder,
         unsigned int xspacing, unsigned int yspacing);
     virtual void deleteLater(void);
 
     bool searchForLogo(MythPlayer* player);
-    bool doesThisFrameContainTheFoundLogo(unsigned char* frame);
+    bool doesThisFrameContainTheFoundLogo(VideoFrame* frame);
     bool pixelInsideLogo(unsigned int x, unsigned int y);
 
     unsigned int getRequiredAvailableBufferForSearch();
 
   protected:
-    virtual ~ClassicLogoDetector() {}
+    virtual ~NextgenLogoDetector() {}
 
   private:
     void SetLogoMaskArea();
-    void SetLogoMask(unsigned char *mask);
-    void DumpLogo(bool fromCurrentFrame,unsigned char* framePtr);
+    //void SetLogoMask(unsigned char *mask);
+    //void DumpLogo(bool fromCurrentFrame,unsigned char* framePtr);
     void DetectEdges(VideoFrame *frame, EdgeMaskEntry *edges, int edgeDiff);
 
-    ClassicCommDetector* commDetector;
-    unsigned int frameNumber;
+    NextgenCommDetector* commDetector;
     bool previousFrameWasSceneChange;
     unsigned int xspacing, yspacing;
     unsigned int commDetectBorder;

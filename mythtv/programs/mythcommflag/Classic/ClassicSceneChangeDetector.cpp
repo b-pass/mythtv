@@ -1,6 +1,9 @@
 #include <algorithm>
 using namespace std;
 
+// MythTV headers
+#include "frame.h"
+
 #include "ClassicSceneChangeDetector.h"
 #include "Histogram.h"
 
@@ -8,7 +11,6 @@ ClassicSceneChangeDetector::ClassicSceneChangeDetector(unsigned int width,
         unsigned int height, unsigned int commdetectborder_in,
         unsigned int xspacing_in, unsigned int yspacing_in):
     SceneChangeDetectorBase(width,height),
-    frameNumber(0),
     previousFrameWasSceneChange(false),
     xspacing(xspacing_in),
     yspacing(yspacing_in),
@@ -25,8 +27,9 @@ void ClassicSceneChangeDetector::deleteLater(void)
     SceneChangeDetectorBase::deleteLater();
 }
 
-void ClassicSceneChangeDetector::processFrame(unsigned char* frame)
+void ClassicSceneChangeDetector::processFrame(VideoFrame* frame)
 {
+    width = frame->pitches[0];
     histogram->generateFromImage(frame, width, height, commdetectborder,
                                  width-commdetectborder, commdetectborder,
                                  height-commdetectborder, xspacing, yspacing);
@@ -34,11 +37,10 @@ void ClassicSceneChangeDetector::processFrame(unsigned char* frame)
 
     bool isSceneChange = (similar < .85 && !previousFrameWasSceneChange);
 
-    emit(haveNewInformation(frameNumber,isSceneChange,similar));
+    emit(haveNewInformation(frame->frameNumber,isSceneChange,similar));
     previousFrameWasSceneChange = isSceneChange;
 
     std::swap(histogram,previousHistogram);
-    frameNumber++;
 }
 
 /* vim: set expandtab tabstop=4 shiftwidth=4: */
