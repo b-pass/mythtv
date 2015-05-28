@@ -8,6 +8,13 @@
 #include "mythscreenstack.h"
 #include "mythnotificationcenter.h"
 
+#ifdef USING_EGLFS
+#include <QGLWidget>
+#define MYTH_MAIN_WINDOW_BASE QGLWidget
+#else
+#define MYTH_MAIN_WINDOW_BASE QWidget
+#endif
+
 class QEvent;
 
 class MythMediaDevice;
@@ -28,8 +35,9 @@ class MythPainterWindowQt;
 class MythPainterWindowVDPAU;
 class MythPainterWindowD3D9;
 class MythRender;
+class QGLContext;
 
-class MUI_PUBLIC MythMainWindow : public QWidget
+class MUI_PUBLIC MythMainWindow : public MYTH_MAIN_WINDOW_BASE
 {
     Q_OBJECT
     friend class MythPainterWindowGL;
@@ -150,7 +158,7 @@ class MUI_PUBLIC MythMainWindow : public QWidget
     void signalRemoteScreenShot(QString filename, int x, int y);
 
   protected:
-    MythMainWindow(const bool useDB = true);
+    MythMainWindow(const bool useDB = true, QGLContext *qgl = NULL);
     virtual ~MythMainWindow();
 
     void InitKeys(void);
@@ -159,6 +167,7 @@ class MUI_PUBLIC MythMainWindow : public QWidget
     void customEvent(QEvent *ce);
     void closeEvent(QCloseEvent *e);
 
+    void paintEvent(QPaintEvent *pe);
     void drawScreen();
 
     bool event(QEvent* e);

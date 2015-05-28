@@ -182,6 +182,8 @@ using_opengl {
     mingw:LIBS += -lopengl32
 }
 
+DEFINES += USING_EGLFS
+
 DEFINES += USING_QTWEBKIT
 DEFINES += MUI_API
 

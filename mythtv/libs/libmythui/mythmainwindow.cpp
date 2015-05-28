@@ -340,11 +340,35 @@ MythMainWindow *MythMainWindow::getMainWindow(const bool useDB)
 
     QMutexLocker lock(&mainLock);
 
-    if (!mainWin)
+    if (mainWin)
+        return mainWin;
+
+#ifdef USING_EGLFS
+    QString painter = GetMythDB()->GetSetting("ThemePainter", OPENGL_PAINTER);
+    if (!painter.contains(OPENGL_PAINTER))
     {
-        mainWin = new MythMainWindow(useDB);
-        gCoreContext->SetGUIObject(mainWin);
+        LOG(VB_GENERAL, LOG_ERR, "Forcing OpenGL painter since this is an EGLFS build");
+        painter = OPENGL_PAINTER;
     }
+    
+    MythRenderOpenGL *render = MythRenderOpenGL::Create(painter);
+    mainWin = new MythMainWindow(useDB, render);
+    if (!mainWin || !mainWin->isValid())
+    {
+        LOG(VB_GENERAL, LOG_ERR, "Failed to create EGLFS main window. "
+                                 "Check your OpenGL installation.");
+        abort();
+    }
+
+    render->Init();
+    mainWin->d->paintwin = mainWin;
+    mainWin->d->painter = new MythOpenGLPainter();
+    mainWin->d->render = render;
+#else
+    mainWin = new MythMainWindow(useDB);
+#endif
+
+    gCoreContext->SetGUIObject(mainWin);
 
     return mainWin;
 }
@@ -431,9 +455,13 @@ void MythPainterWindowQt::paintEvent(QPaintEvent *pe)
     parent->drawScreen();
 }
 
-MythMainWindow::MythMainWindow(const bool useDB)
-              : QWidget(NULL)
+MythMainWindow::MythMainWindow(const bool useDB, QGLContext *render)
+#ifdef USING_EGLFS
+              : QGLWidget(render, NULL)
+#endif
 {
+    (void)render; // may be unused
+
     d = new MythMainWindowPrivate;
 
     setObjectName("mainwindow");
@@ -444,6 +472,7 @@ MythMainWindow::MythMainWindow(const bool useDB)
     d->m_useDB = useDB;
     d->painter = NULL;
     d->paintwin = NULL;
+    d->render = NULL;
     d->oldpainter = NULL;
     d->oldpaintwin = NULL;
     d->oldrender = NULL;
@@ -748,6 +777,16 @@ void MythMainWindow::animate(void)
     d->drawTimer->blockSignals(false);
 }
 
+void MythMainWindow::paintEvent(QPaintEvent *pe)
+{
+#ifdef USING_EGLFS
+    d->repaintRegion = d->repaintRegion.unite(pe->region());
+    drawScreen();
+#else
+    MYTH_MAIN_WINDOW_BASE::paintEvent(pe);
+#endif
+}
+
 void MythMainWindow::drawScreen(void)
 {
     /* FIXME: remove */
@@ -850,7 +889,7 @@ void MythMainWindow::closeEvent(QCloseEvent *e)
         e->ignore();
     }
     else
-        QWidget::closeEvent(e);
+        MYTH_MAIN_WINDOW_BASE::closeEvent(e);
 }
 
 void MythMainWindow::GrabWindow(QImage &image)
@@ -960,7 +999,7 @@ bool MythMainWindow::event(QEvent *e)
     }
 #endif
 
-    return QWidget::event(e);
+    return MYTH_MAIN_WINDOW_BASE::event(e);
 }
 
 void MythMainWindow::Init(QString forcedpainter)
@@ -1063,6 +1102,21 @@ void MythMainWindow::Init(QString forcedpainter)
         d->render = NULL;
     }
 
+#ifdef USING_EGLFS
+
+    LOG(VB_GENERAL, LOG_INFO, "Cannot re-init paint windows in EGLFS");
+
+    d->paintwin = d->oldpaintwin;
+    d->oldpaintwin = NULL;
+
+    d->painter = d->oldpainter;
+    d->oldpainter = NULL;
+
+    d->render = d->oldrender;
+    d->oldrender = NULL;
+
+#else//USING_EGLFS
+
     QString painter = forcedpainter.isEmpty() ?
         GetMythDB()->GetSetting("ThemePainter", QT_PAINTER) : forcedpainter;
 #ifdef USING_MINGW
@@ -1072,7 +1126,7 @@ void MythMainWindow::Init(QString forcedpainter)
         d->painter = new MythD3D9Painter();
         d->paintwin = new MythPainterWindowD3D9(this, d);
     }
-#endif
+#endif//USING_MINGW
 #ifdef USE_OPENGL_PAINTER
     if ((painter == AUTO_PAINTER && (!d->painter && !d->paintwin)) ||
         painter.contains(OPENGL_PAINTER))
@@ -1111,7 +1165,8 @@ void MythMainWindow::Init(QString forcedpainter)
                 gl->Init();
         }
     }
-#endif
+#endif//USE_OPENGL_PAINTER
+#endif//USING_EGLFS
 
     if (!d->painter && !d->paintwin)
     {
@@ -2528,7 +2583,7 @@ QObject *MythMainWindow::getTarget(QKeyEvent &key)
     if (!currentWidget())
         return key_target;
 
-    key_target = QWidget::keyboardGrabber();
+    key_target = MYTH_MAIN_WINDOW_BASE::keyboardGrabber();
 
     if (!key_target)
     {
