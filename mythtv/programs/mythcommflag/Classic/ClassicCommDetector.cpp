@@ -30,11 +30,13 @@ typedef enum frameAspects {
     COMM_ASPECT_WIDE
 } FrameAspects;
 
-typedef enum frameFormats {
+// letter-box and pillar-box are not mutually exclusive
+// So 3 is a valid value = (COMM_FORMAT_LETTERBOX | COMM_FORMAT_PILLARBOX)
+// And 4 = COMM_FORMAT_MAX is the number of valid values.
+enum frameFormats {
     COMM_FORMAT_NORMAL    = 0,
-    COMM_FORMAT_LETTERBOX,
-    COMM_FORMAT_PILLARBOX,
-
+    COMM_FORMAT_LETTERBOX = 1,
+    COMM_FORMAT_PILLARBOX = 2,
     COMM_FORMAT_MAX       = 4,
 } FrameFormats;
 
