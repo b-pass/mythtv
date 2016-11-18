@@ -205,9 +205,9 @@ class MainServer : public QObject, public MythSocketCBs
     void HandleLockTuner(PlaybackSock *pbs, int cardid = -1);
     void HandleFreeTuner(int cardid, PlaybackSock *pbs);
     void HandleCutMapQuery(const QString &chanid, const QString &starttime,
-                           PlaybackSock *pbs, bool commbreak);
+                           PlaybackSock *pbs, bool commbreak, const QString &unit = QString());
     void HandleCommBreakQuery(const QString &chanid, const QString &starttime,
-                              PlaybackSock *pbs);
+                              PlaybackSock *pbs, const QString &unit = QString());
     void HandleCutlistQuery(const QString &chanid, const QString &starttime,
                             PlaybackSock *pbs);
     void HandleBookmarkQuery(const QString &chanid, const QString &starttime,

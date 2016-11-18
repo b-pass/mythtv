@@ -773,7 +773,10 @@ void MainServer::ProcessRequestWork(MythSocket *sock)
     else if (command == "QUERY_COMMBREAK")
     {
         if (tokens.size() != 3)
-            LOG(VB_GENERAL, LOG_ERR, "Bad QUERY_COMMBREAK");
+            if (tokens.size() != 4)
+                LOG(VB_GENERAL, LOG_ERR, "Bad QUERY_COMMBREAK");
+            else
+                HandleCommBreakQuery(tokens[1], tokens[2], pbs, tokens[3]);
         else
             HandleCommBreakQuery(tokens[1], tokens[2], pbs);
     }
@@ -4869,7 +4872,7 @@ bool MainServer::HandleDeleteFile(QString filename, QString storagegroup,
 // Helper function for the guts of HandleCommBreakQuery + HandleCutlistQuery
 void MainServer::HandleCutMapQuery(const QString &chanid,
                                    const QString &starttime,
-                                   PlaybackSock *pbs, bool commbreak)
+                                   PlaybackSock *pbs, bool commbreak, const QString &unitStr)
 {
     MythSocket *pbssock = NULL;
     if (pbs)
@@ -4880,8 +4883,15 @@ void MainServer::HandleCutMapQuery(const QString &chanid,
     QDateTime recstartdt = MythDate::fromTime_t(starttime.toULongLong());
     QStringList retlist;
     int rowcnt = 0;
+    int unit = 0;
+    if (unitStr.size())
+       unit = unitStr.toInt();
 
     const ProgramInfo pginfo(chanid.toUInt(), recstartdt);
+
+    frm_pos_map_t posMap;
+    if (unit == 2)
+       pginfo.QueryPositionMap(posMap, MARK_DURATION_MS);
 
     if (pginfo.GetChanID())
     {
@@ -4892,10 +4902,38 @@ void MainServer::HandleCutMapQuery(const QString &chanid,
 
         for (it = markMap.begin(); it != markMap.end(); ++it)
         {
+            uint64_t key = it.key();
+            if (!posMap.empty())
+            {
+                frm_pos_map_t::iterator p, n;
+                p = posMap.lowerBound(key);
+                if (p.key() == key)
+                {
+                    key = p.value();
+                }
+                else
+                {
+                    if (p != posMap.begin())
+                        --p;
+                    n = posMap.upperBound(key);
+                    if (n != posMap.end())
+                    {
+                        double frameDiff = n.key() - p.key();
+                        double msPerFrame = (n.value() - p.value()) / frameDiff;
+                        key = p.value();
+                        key += (frameDiff / double(it.key() - p.key())) * msPerFrame;
+                        //printf("Frame %ld is %ld/%ld to %ld/%ld = %ld\n", it.key(), p.key(), p.value(), n.key(), n.value(), key);
+                    }
+                    else
+                    {
+                        key = p.value();
+                    }
+                }
+            }
             rowcnt++;
             QString intstr = QString("%1").arg(*it);
             retlist << intstr;
-            retlist << QString::number(it.key());
+            retlist << QString::number(key);
         }
     }
 
@@ -4912,7 +4950,8 @@ void MainServer::HandleCutMapQuery(const QString &chanid,
 
 void MainServer::HandleCommBreakQuery(const QString &chanid,
                                       const QString &starttime,
-                                      PlaybackSock *pbs)
+                                      PlaybackSock *pbs,
+                                      const QString &unit)
 {
 // Commercial break query
 // Format:  QUERY_COMMBREAK <chanid> <starttime>
@@ -4922,7 +4961,7 @@ void MainServer::HandleCommBreakQuery(const QString &chanid,
 // Return structure is [number of rows] followed by a triplet of values:
 //   each triplet : [type] [long portion 1] [long portion 2]
 // type is the value in the map, right now 4 = commbreak start, 5= end
-    return HandleCutMapQuery(chanid, starttime, pbs, true);
+    return HandleCutMapQuery(chanid, starttime, pbs, true, unit);
 }
 
 void MainServer::HandleCutlistQuery(const QString &chanid,
