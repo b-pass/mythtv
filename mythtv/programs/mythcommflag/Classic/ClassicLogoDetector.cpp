@@ -84,7 +84,7 @@ void ClassicLogoDetector::deleteLater(void)
 
 bool ClassicLogoDetector::searchForLogo(MythPlayer* player)
 {
-    int seekIncrement = 
+    int seekIncrement =
         (int)(commDetectLogoSampleSpacing * player->GetFrameRate());
     long long seekFrame;
     int loops;
@@ -114,8 +114,9 @@ bool ClassicLogoDetector::searchForLogo(MythPlayer* player)
     {
         int pixelsInMask = 0;
 
-        LOG(VB_COMMFLAG, LOG_INFO, QString("Trying with edgeDiff == %1, minPixelsInMask=%2")
-                .arg(edgeDiffs[i]).arg(minPixelsInMask));
+        LOG(VB_COMMFLAG, LOG_INFO,
+            QString("Trying with edgeDiff == %1, minPixelsInMask=%2")
+            .arg(edgeDiffs[i]).arg(minPixelsInMask));
 
         memset(edgeCounts, 0, sizeof(EdgeMaskEntry) * width * height);
         memset(edgeMask, 0, sizeof(EdgeMaskEntry) * width * height);
@@ -252,7 +253,7 @@ bool ClassicLogoDetector::searchForLogo(MythPlayer* player)
             logoInfoAvailable = true;
             logoEdgeDiff = edgeDiffs[i];
 
-            LOG(VB_COMMFLAG, LOG_INFO, 
+            LOG(VB_COMMFLAG, LOG_INFO,
                 QString("Using Logo area: topleft (%1,%2), "
                         "bottomright (%3,%4), pixelsInMask (%5).")
                     .arg(logoMinX).arg(logoMinY)
@@ -261,7 +262,7 @@ bool ClassicLogoDetector::searchForLogo(MythPlayer* player)
         }
         else
         {
-            LOG(VB_COMMFLAG, LOG_INFO, 
+            LOG(VB_COMMFLAG, LOG_INFO,
                 QString("Rejecting Logo area: topleft (%1,%2), "
                         "bottomright (%3,%4), pixelsInMask (%5). "
                         "Not within specified limits.")
@@ -591,4 +592,3 @@ void ClassicLogoDetector::DetectEdges(VideoFrame *frame, EdgeMaskEntry *edges,
 }
 
 /* vim: set expandtab tabstop=4 shiftwidth=4: */
-

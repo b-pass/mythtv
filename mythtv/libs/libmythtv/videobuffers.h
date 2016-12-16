@@ -14,6 +14,7 @@ using namespace std;
 #include <QString>
 #include <QWaitCondition>
 
+#include "mythtvexp.h"
 #include "mythdeque.h"
 
 #ifdef USING_X11

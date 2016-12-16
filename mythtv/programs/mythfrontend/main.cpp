@@ -49,6 +49,7 @@ using namespace std;
 #include "mythsystemevent.h"
 #include "hardwareprofile.h"
 #include "signalhandling.h"
+#include "loggingserver.h"
 
 #include "compat.h"  // For SIG* on MinGW
 #include "exitcodes.h"
@@ -1490,6 +1491,19 @@ int main(int argc, char **argv)
     CleanupGuard callCleanup(cleanup);
 
 #ifdef Q_OS_MAC
+    // Without this, we can't set focus to any of the CheckBoxSetting, and most
+    // of the MythPushButton widgets, and they don't use the themed background.
+    QApplication::setDesktopSettingsAware(false);
+#endif
+#ifdef Q_OS_LINUX
+    // This makes Xlib calls thread-safe which seems to be required for hardware
+    // accelerated Flash playback to work without causing mythfrontend to abort.
+    QApplication::setAttribute(Qt::AA_X11InitThreads);
+#endif
+    new QApplication(argc, argv);
+    QCoreApplication::setApplicationName(MYTH_APPNAME_MYTHFRONTEND);
+
+#ifdef Q_OS_MAC
     QString path = QCoreApplication::applicationDirPath();
     setenv("PYTHONPATH",
            QString("%1/../Resources/lib/python2.6/site-packages:%2")
@@ -1508,7 +1522,7 @@ int main(int argc, char **argv)
     SignalHandler::Init(signallist);
     SignalHandler::SetHandler(SIGUSR1, handleSIGUSR1);
     SignalHandler::SetHandler(SIGUSR2, handleSIGUSR2);
-    signal(SIGHUP, SIG_IGN);
+    SignalHandler::SetHandler(SIGHUP, logSigHup);
 #endif
 
     int retval;
