@@ -8,7 +8,6 @@
 #include "mythlogging.h"
 #include "mythplayer.h"
 #include "mythframe.h"          /* VideoFrame */
-#include "mythavutil.h"
 
 // Commercial Flagging headers
 #include "CommDetector2.h"

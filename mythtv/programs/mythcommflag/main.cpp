@@ -38,16 +38,15 @@ using namespace std;
 #include "ringbuffer.h"
 #include "commandlineparser.h"
 #include "mythtranslation.h"
-#include "loggingserver.h"
 #include "mythlogging.h"
 #include "signalhandling.h"
-#include "cleanupguard.h"
 
 // Commercial Flagging headers
 #include "CommDetectorBase.h"
 #include "CommDetectorFactory.h"
 #include "SlotRelayer.h"
 #include "CustomEventRelayer.h"
+//#include "AudioBuffer.h"
 
 #define LOC      QString("MythCommFlag: ")
 #define LOC_WARN QString("MythCommFlag, Warning: ")
@@ -61,6 +60,24 @@ namespace
         gContext = NULL;
         SignalHandler::Done();
     }
+
+    class CleanupGuard
+    {
+      public:
+        typedef void (*CleanupFunc)();
+
+      public:
+        CleanupGuard(CleanupFunc cleanFunction) :
+            m_cleanFunction(cleanFunction) {}
+
+        ~CleanupGuard()
+        {
+            m_cleanFunction();
+        }
+
+      private:
+        CleanupFunc m_cleanFunction;
+    };
 }
 
 int  quiet = 0;
@@ -93,12 +110,25 @@ static QMap<QString,SkipTypes> *init_skip_types(void)
     (*tmp)["blankscene"]  = COMM_DETECT_BLANK_SCENE;
     (*tmp)["blank_scene"] = COMM_DETECT_BLANK_SCENE;
     (*tmp)["logo"]        = COMM_DETECT_LOGO;
+    (*tmp)["audio"]       = COMM_DETECT_AUDIO;
+    (*tmp)["sub"]         = COMM_DETECT_SUBTITLES;
     (*tmp)["all"]         = COMM_DETECT_ALL;
     (*tmp)["d2"]          = COMM_DETECT_2;
     (*tmp)["d2_logo"]     = COMM_DETECT_2_LOGO;
     (*tmp)["d2_blank"]    = COMM_DETECT_2_BLANK;
     (*tmp)["d2_scene"]    = COMM_DETECT_2_SCENE;
     (*tmp)["d2_all"]      = COMM_DETECT_2_ALL;
+    (*tmp)["ng"]          = (SkipTypes)(COMM_DETECT_NG);
+    (*tmp)["ng_logo"]     = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_LOGO);
+    (*tmp)["ng_blank"]    = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_BLANK);
+    (*tmp)["ng_scene"]    = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_SCENE);
+    (*tmp)["ng_audio"]    = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_AUDIO);
+    (*tmp)["ng_all"]      = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_ALL | COMM_DETECT_AUDIO | COMM_DETECT_SUBTITLES);
+    (*tmp)["ng_allx"]     = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_ALL | COMM_DETECT_AUDIO | COMM_DETECT_SUBTITLES | COMM_DETECT_LOGO_EXPERIMENTAL);
+    (*tmp)["ng_old"]      = (SkipTypes)(COMM_DETECT_NG_OLD);
+    (*tmp)["d3"]          = COMM_DETECT_3;
+    (*tmp)["d3_nologo"]   = (SkipTypes)((COMM_DETECT_3 | COMM_DETECT_ALL) & ~COMM_DETECT_LOGO);
+    (*tmp)["d3_all"]      = (SkipTypes)(COMM_DETECT_3 | COMM_DETECT_ALL);
     return tmp;
 }
 
@@ -723,6 +753,8 @@ static int FlagCommercials(ProgramInfo *program_info, int jobid,
     // configure commercial detection method
     SkipTypes commDetectMethod = (SkipTypes)gCoreContext->GetNumSetting(
                                     "CommercialSkipMethod", COMM_DETECT_ALL);
+    bool commDetectHighResolution =
+            !!gCoreContext->GetNumSetting("CommercialSkipResolution", 0);
 
     if (cmdline.toBool("commmethod"))
     {
@@ -821,6 +853,10 @@ static int FlagCommercials(ProgramInfo *program_info, int jobid,
     else if (commDetectMethod == COMM_DETECT_OFF)
         return GENERIC_EXIT_OK;
 
+	// default to a cheaper method for debugging purposes
+    if (cmdline.toBool("highres"))
+        commDetectHighResolution = true;
+
     frm_dir_map_t blanks;
     recorder = NULL;
 
@@ -870,10 +906,11 @@ static int FlagCommercials(ProgramInfo *program_info, int jobid,
 
     PlayerFlags flags = (PlayerFlags)(kAudioMuted   |
                                       kVideoIsNull  |
-                                      kDecodeLowRes |
+                                      (commDetectHighResolution?0:kDecodeLowRes) |
                                       kDecodeSingleThreaded |
                                       kDecodeNoLoopFilter |
                                       kNoITV);
+    
     /* blank detector needs to be only sample center for this optimization. */
     if ((COMM_DETECT_BLANKS  == commDetectMethod) ||
         (COMM_DETECT_2_BLANK == commDetectMethod))
@@ -965,6 +1002,15 @@ static int FlagCommercials( uint chanid, const QDateTime &starttime,
     }
 
 
+    if (pginfo.GetSubtitle().isEmpty())
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("MythTV Commercial Flagger, flagging commercials for: %1")
+                .arg(pginfo.GetTitle()));
+    else
+        LOG(VB_GENERAL, LOG_INFO,
+            QString("MythTV Commercial Flagger, flagging commercials for: %1 - %2")
+                .arg(pginfo.GetTitle())
+                .arg(pginfo.GetSubtitle()));
     if (progress)
     {
         cerr << "MythTV Commercial Flagger, flagging commercials for:" << endl;
@@ -1123,7 +1169,7 @@ int main(int argc, char *argv[])
     signallist << SIGRTMIN;
 #endif
     SignalHandler::Init(signallist);
-    SignalHandler::SetHandler(SIGHUP, logSigHup);
+    signal(SIGHUP, SIG_IGN);
 #endif
 
     gContext = new MythContext(MYTH_BINARY_VERSION);
@@ -1145,7 +1191,7 @@ int main(int argc, char *argv[])
         if (outputTypes->contains(om))
             outputMethod = outputTypes->value(om);
     }
-
+    
     if (cmdline.toBool("chanid") && cmdline.toBool("starttime"))
     {
         // operate on a recording in the database
@@ -1207,24 +1253,15 @@ int main(int argc, char *argv[])
             ret = FlagCommercials(chanid, starttime, jobID, "", jobQueueCPU != 0);
 
         if (ret > GENERIC_EXIT_NOT_OK)
-            JobQueue::ChangeJobStatus(jobID, JOB_ERRORED,
+            JobQueue::ChangeJobStatus(jobID, JOB_ERRORED, 
                 QCoreApplication::translate("(mythcommflag)",
                                             "Failed with exit status %1",
                                             "Job status").arg(ret));
         else
             JobQueue::ChangeJobStatus(jobID, JOB_FINISHED,
-#if QT_VERSION < 0x050000
                 QCoreApplication::translate("(mythcommflag)",
                                             "%n commercial break(s)",
-                                            "Job status",
-                                            QCoreApplication::UnicodeUTF8,
-                                            ret));
-#else
-                QCoreApplication::translate("(mythcommflag)",
-                                            "%n commercial break(s)",
-                                            "Job status",
-                                            ret));
-#endif
+                                            "Job status").arg(ret));
     }
     else if (cmdline.toBool("video"))
     {

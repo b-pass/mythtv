@@ -7,11 +7,13 @@
 // MythTV headers
 #include "mythcorecontext.h"
 #include "mythplayer.h"
-#include "libavutil/frame.h"
 
 // Commercial Flagging headers
-#include "ClassicLogoDetector.h"
-#include "ClassicCommDetector.h"
+#include "NextgenLogoDetector.h"
+#include "NextgenCommDetector.h"
+
+// for debugging
+//#include "commercial_debug.h"
 
 typedef struct edgemaskentry
 {
@@ -23,14 +25,21 @@ typedef struct edgemaskentry
 }
 EdgeMaskEntry;
 
+#define IMG_DEBUG
+#ifdef IMG_DEBUG
+//#include <png.h>
+//#include <zlib.h>
 
-ClassicLogoDetector::ClassicLogoDetector(ClassicCommDetector* commdetector,
+
+#endif
+
+NextgenLogoDetector::NextgenLogoDetector(NextgenCommDetector* commdetector,
                                          unsigned int w, unsigned int h,
                                          unsigned int commdetectborder_in,
                                          unsigned int xspacing_in,
                                          unsigned int yspacing_in)
     : LogoDetectorBase(w,h),
-      commDetector(commdetector),                       frameNumber(0),
+      commDetector(commdetector),
       previousFrameWasSceneChange(false),
       xspacing(xspacing_in),                            yspacing(yspacing_in),
       commDetectBorder(commdetectborder_in),            edgeMask(new EdgeMaskEntry[width * height]),
@@ -54,14 +63,15 @@ ClassicLogoDetector::ClassicLogoDetector(ClassicCommDetector* commdetector,
     commDetectLogoBadEdgeThreshold =
         gCoreContext->GetSetting("CommDetectLogoBadEdgeThreshold", "0.85")
         .toDouble();
+
 }
 
-unsigned int ClassicLogoDetector::getRequiredAvailableBufferForSearch()
+unsigned int NextgenLogoDetector::getRequiredAvailableBufferForSearch()
 {
     return commDetectLogoSecondsNeeded;
 }
 
-void ClassicLogoDetector::deleteLater(void)
+void NextgenLogoDetector::deleteLater(void)
 {
     commDetector = 0;
     if (edgeMask)
@@ -82,9 +92,9 @@ void ClassicLogoDetector::deleteLater(void)
     LogoDetectorBase::deleteLater();
 }
 
-bool ClassicLogoDetector::searchForLogo(MythPlayer* player)
+bool NextgenLogoDetector::searchForLogo(MythPlayer* player)
 {
-    int seekIncrement =
+    int seekIncrement = 
         (int)(commDetectLogoSampleSpacing * player->GetFrameRate());
     long long seekFrame;
     int loops;
@@ -114,9 +124,8 @@ bool ClassicLogoDetector::searchForLogo(MythPlayer* player)
     {
         int pixelsInMask = 0;
 
-        LOG(VB_COMMFLAG, LOG_INFO,
-            QString("Trying with edgeDiff == %1, minPixelsInMask=%2")
-            .arg(edgeDiffs[i]).arg(minPixelsInMask));
+        LOG(VB_COMMFLAG, LOG_INFO, QString("Trying with edgeDiff == %1, minPixelsInMask=%2")
+                .arg(edgeDiffs[i]).arg(minPixelsInMask));
 
         memset(edgeCounts, 0, sizeof(EdgeMaskEntry) * width * height);
         memset(edgeMask, 0, sizeof(EdgeMaskEntry) * width * height);
@@ -253,7 +262,7 @@ bool ClassicLogoDetector::searchForLogo(MythPlayer* player)
             logoInfoAvailable = true;
             logoEdgeDiff = edgeDiffs[i];
 
-            LOG(VB_COMMFLAG, LOG_INFO,
+            LOG(VB_COMMFLAG, LOG_INFO, 
                 QString("Using Logo area: topleft (%1,%2), "
                         "bottomright (%3,%4), pixelsInMask (%5).")
                     .arg(logoMinX).arg(logoMinY)
@@ -262,7 +271,7 @@ bool ClassicLogoDetector::searchForLogo(MythPlayer* player)
         }
         else
         {
-            LOG(VB_COMMFLAG, LOG_INFO,
+            LOG(VB_COMMFLAG, LOG_INFO, 
                 QString("Rejecting Logo area: topleft (%1,%2), "
                         "bottomright (%3,%4), pixelsInMask (%5). "
                         "Not within specified limits.")
@@ -282,7 +291,7 @@ bool ClassicLogoDetector::searchForLogo(MythPlayer* player)
 }
 
 
-void ClassicLogoDetector::SetLogoMaskArea()
+void NextgenLogoDetector::SetLogoMaskArea()
 {
     LOG(VB_COMMFLAG, LOG_INFO, "SetLogoMaskArea()");
 
@@ -324,8 +333,84 @@ void ClassicLogoDetector::SetLogoMaskArea()
         logoMaxY = (height-5);
 }
 
+#if 0
+void NextgenLogoDetector::SetLogoMask(unsigned char *mask)
+{
+    int pixels = 0;
 
-void ClassicLogoDetector::DumpLogo(bool fromCurrentFrame,
+    memcpy(logoMask, mask, width * height);
+
+    SetLogoMaskArea();
+
+    for(unsigned int y = logoMinY; y <= logoMaxY; y++)
+        for(unsigned int x = logoMinX; x <= logoMaxX; x++)
+            if (!logoMask[y * width + x] == 1)
+                pixels++;
+
+    if (pixels < 30)
+        return;
+
+    // set the pixels around our logo
+    for(unsigned int y = (logoMinY - 1); y <= (logoMaxY + 1); y++)
+    {
+        for(unsigned int x = (logoMinX - 1); x <= (logoMaxX + 1); x++)
+        {
+            if (!logoMask[y * width + x])
+            {
+                for (unsigned int y2 = y - 1; y2 <= (y + 1); y2++)
+                {
+                    for (unsigned int x2 = x - 1; x2 <= (x + 1); x2++)
+                    {
+                        if ((logoMask[y2 * width + x2] == 1) &&
+                            (!logoMask[y * width + x]))
+                        {
+                            logoMask[y * width + x] = 2;
+                            x2 = x + 2;
+                            y2 = y + 2;
+
+                            logoCheckMask[y2 * width + x2] = 1;
+                            logoCheckMask[y * width + x] = 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for(unsigned int y = (logoMinY - 2); y <= (logoMaxY + 2); y++)
+    {
+        for(unsigned int x = (logoMinX - 2); x <= (logoMaxX + 2); x++)
+        {
+            if (!logoMask[y * width + x])
+            {
+                for (unsigned int y2 = y - 1; y2 <= (y + 1); y2++)
+                {
+                    for (unsigned int x2 = x - 1; x2 <= (x + 1); x2++)
+                    {
+                        if ((logoMask[y2 * width + x2] == 2) &&
+                            (!logoMask[y * width + x]))
+                        {
+                            logoMask[y * width + x] = 3;
+                            x2 = x + 2;
+                            y2 = y + 2;
+
+                            logoCheckMask[y * width + x] = 1;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+#ifdef SHOW_DEBUG_WIN
+    DumpLogo(true,framePtr);
+#endif
+
+    logoFrameCount = 0;
+    logoInfoAvailable = true;
+}
+
+void NextgenLogoDetector::DumpLogo(bool fromCurrentFrame,
     unsigned char* framePtr)
 {
     char scrPixels[] = " .oxX";
@@ -372,13 +457,14 @@ void ClassicLogoDetector::DumpLogo(bool fromCurrentFrame,
     }
     cerr.flush();
 }
+#endif
 
 
 /* ideas for this method ported back from comskip.c mods by Jere Jones
  * which are partially mods based on Myth's original commercial skip
  * code written by Chris Pinkham. */
-bool ClassicLogoDetector::doesThisFrameContainTheFoundLogo(
-    VideoFrame* frame)
+bool NextgenLogoDetector::doesThisFrameContainTheFoundLogo(
+    VideoFrame * frame)
 {
     int radius = 2;
     unsigned int x, y;
@@ -436,7 +522,6 @@ bool ClassicLogoDetector::doesThisFrameContainTheFoundLogo(
         }
     }
 
-    frameNumber++;
     double goodEdgeRatio = (testEdges) ?
         (double)goodEdges / (double)testEdges : 0.0;
     double badEdgeRatio = (testNotEdges) ?
@@ -448,7 +533,7 @@ bool ClassicLogoDetector::doesThisFrameContainTheFoundLogo(
         return false;
 }
 
-bool ClassicLogoDetector::pixelInsideLogo(unsigned int x, unsigned int y)
+bool NextgenLogoDetector::pixelInsideLogo(unsigned int x, unsigned int y)
 {
     if (!logoInfoAvailable)
         return false;
@@ -457,7 +542,7 @@ bool ClassicLogoDetector::pixelInsideLogo(unsigned int x, unsigned int y)
             (y > logoMinY) && (y < logoMaxY));
 }
 
-void ClassicLogoDetector::DetectEdges(VideoFrame *frame, EdgeMaskEntry *edges,
+void NextgenLogoDetector::DetectEdges(VideoFrame *frame, EdgeMaskEntry *edges,
                                       int edgeDiff)
 {
     int r = 2;
@@ -515,3 +600,4 @@ void ClassicLogoDetector::DetectEdges(VideoFrame *frame, EdgeMaskEntry *edges,
 }
 
 /* vim: set expandtab tabstop=4 shiftwidth=4: */
+

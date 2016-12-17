@@ -21,7 +21,6 @@ class ClassicSceneChangeDetector : public SceneChangeDetectorBase
   private:
     Histogram* histogram;
     Histogram* previousHistogram;
-    unsigned int frameNumber;
     bool previousFrameWasSceneChange;
     unsigned int xspacing, yspacing;
     unsigned int commdetectborder;
