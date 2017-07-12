@@ -3,7 +3,11 @@
 // Standard UNIX C headers
 #include <unistd.h>
 #include <fcntl.h>
+#if defined(__FreeBSD__) || defined(__APPLE__) || defined(__OpenBSD__) || defined(_WIN32)
 #include <sys/types.h>
+#else
+#include <sys/sysmacros.h>
+#endif
 #include <sys/stat.h>
 
 // C++ headers
