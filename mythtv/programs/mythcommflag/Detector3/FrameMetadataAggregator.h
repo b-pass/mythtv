@@ -9,8 +9,6 @@
 
 #include "programtypes.h" // frm_dir_map_t
 
-struct AudioSample;
-
 struct ShowSegment
 {
 	uint64_t frameStart, frameStop;
@@ -56,7 +54,6 @@ public:
 					bool logo,
 					bool scene);
 	void add(FrameMetadata const &meta);
-    bool addAudio(AudioSample const *audio);
     
 	void calculateBreakList(frm_dir_map_t &breakList) const;
 	

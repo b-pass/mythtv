@@ -7,8 +7,23 @@
 
 #include "FrameMetadata.h"
 
-class FrameMetadataAggregator;
-struct AudioSample;
+#ifndef CHANNELS_MAX
+#define CHANNELS_MAX 8
+#endif
+
+struct AudioSample
+{
+    int64_t time;
+    int numChannels;
+    int16_t peak[CHANNELS_MAX+1];
+
+    AudioSample()
+    {
+        time = 0;
+        numChannels = 0;
+        memset(peak, 0, sizeof(int16_t)*(CHANNELS_MAX+1));
+    }
+};
 
 class AudioDetector : public AudioOutput
 {
@@ -16,8 +31,8 @@ public:
     AudioDetector();
     virtual ~AudioDetector();
 
-    void Enable();
-    void processMore(FrameMetadata const &curFrame, FrameMetadataAggregator *agg);
+    void Enable(double fps);
+    void getAudio(FrameMetadata &curFrame);
 
     // AudioOutput overrides:
     virtual void Reconfigure(const AudioSettings &settings);
@@ -49,11 +64,12 @@ public:
 
 private:
     bool m_enabled;
+    double m_fps;
     int64_t m_last_timecode;
     AudioSettings m_settings;
     QScopedPointer<AudioOutputSettings> m_output_settings;
     QMutex m_mutex;
-    std::deque<QSharedPointer<AudioSample> > m_samples;
+    std::deque<AudioSample> m_samples;
 };
 
 #endif//MCF_CD3_AUDIO_DETECTOR_H_

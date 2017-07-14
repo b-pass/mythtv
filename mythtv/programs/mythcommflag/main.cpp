@@ -127,8 +127,9 @@ static QMap<QString,SkipTypes> *init_skip_types(void)
     (*tmp)["ng_allx"]     = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_ALL | COMM_DETECT_AUDIO | COMM_DETECT_SUBTITLES | COMM_DETECT_LOGO_EXPERIMENTAL);
     (*tmp)["ng_old"]      = (SkipTypes)(COMM_DETECT_NG_OLD);
     (*tmp)["d3"]          = COMM_DETECT_3;
-    (*tmp)["d3_nologo"]   = (SkipTypes)((COMM_DETECT_3 | COMM_DETECT_ALL) & ~COMM_DETECT_LOGO);
-    (*tmp)["d3_all"]      = (SkipTypes)(COMM_DETECT_3 | COMM_DETECT_ALL);
+    (*tmp)["d3_nologo"]   = (SkipTypes)((COMM_DETECT_3 | COMM_DETECT_ALL | COMM_DETECT_AUDIO) & ~COMM_DETECT_LOGO);
+    (*tmp)["d3_noaudio"]  = (SkipTypes)(COMM_DETECT_3 | COMM_DETECT_ALL);
+    (*tmp)["d3_all"]      = (SkipTypes)(COMM_DETECT_3 | COMM_DETECT_ALL | COMM_DETECT_AUDIO);
     return tmp;
 }
 

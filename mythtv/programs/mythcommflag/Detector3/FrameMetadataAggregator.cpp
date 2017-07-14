@@ -2,11 +2,11 @@
 #include <stdio.h>
 #include <iostream>
 #include <fstream>
+#include <iomanip>
 
 #include "mythcontext.h"
 #include "programtypes.h"
 
-#include "AudioSample.h"
 #include "FrameMetadataAggregator.h"
 
 FrameMetadataAggregator::FrameMetadataAggregator()
@@ -90,10 +90,40 @@ void FrameMetadataAggregator::add(FrameMetadata const &meta)
 	m_prev = meta;
 }
 
-bool FrameMetadataAggregator::addAudio(AudioSample const *sample)
+/*bool FrameMetadataAggregator::addAudio(AudioSample const *sample)
 {
+    printf("Audio @ %ld [%d]: ", sample->time, sample->num_channels);
+    for (int c = 0; c < sample->num_channels; ++c)
+        printf("%5d ", sample->peak[c]);
+    printf("\n");
+    
+    if (m_segments.empty())
+        return false;
+
+    ShowSegment *seg = &m_segments.back();
+    if ((seg->audio.time + seg->audio.duration) < sample->time)
+        return false;
+    
+    if (seg->audio.time > sample->time)
+    {
+        seg = nullptr;
+        for (int i = m_segments.size() - 2; i >= 0; --i)
+        {
+            if (m_segments[i].audio.time <= sample->time)
+            {
+                seg = &m_segments[i];
+                break;
+            }
+        }
+        if (!seg)
+            return false;
+    }
+
+    printf("Found seg @ %ld f=%ld\n", seg->audio.time, seg->frameStart);
+
+    seg->audio += *sample;
     return true;
-}
+}*/
 
 void FrameMetadataAggregator::calculateBreakList(frm_dir_map_t &output) const
 {
@@ -436,14 +466,15 @@ void FrameMetadataAggregator::dump(
 	if (verbose)
 	{
 		snprintf(buffer, sizeof(buffer),
-			"%13s (%5s): %6s = %5s, %4s, %1s %s\n",
+			"%13s (%6s): %6s = %5s, %4s, %3s %1s %s\n",
 			"Frames",
 			"Time",
 			"Score",
 			"Scene",
 			"Logo",
 			"FC",
-			"Recalc");
+			"R",
+            "Audio");
 		out << buffer;
 	}
 	
@@ -454,7 +485,7 @@ void FrameMetadataAggregator::dump(
 		if (seg.score == INT_MIN)
 		{
 			calculateSegmentScore(seg);
-			recalc = "***";
+			recalc = "*";
 		}
 		
 		uint64_t totalFrames = seg.frameStop - seg.frameStart + 1;
@@ -462,7 +493,7 @@ void FrameMetadataAggregator::dump(
 		double secs_per_scene = m_scene && seg.sceneCount ? totalTime / seg.sceneCount : -1.0;
 		
 		snprintf(buffer, sizeof(buffer),
-			"%6ld-%6ld (%5.01lfs): %-6d = %5.01lf, %3ld%%, %1d %s\n",
+			"%6ld-%6ld (%6.01lfs): %-6d = %5.01lf, %3ld%%, %3d %1s",
 			seg.frameStart, seg.frameStop, totalTime,
 			seg.score,
 			secs_per_scene,
@@ -470,6 +501,14 @@ void FrameMetadataAggregator::dump(
 			seg.formatChanges + seg.sizeChanges,
 			recalc);
 		out << buffer;
+        
+        /*for (int c = 0; c < seg.audio.num_channels; c++)
+        {
+            snprintf(buffer, sizeof(buffer), " %5d", seg.audio.peak[c]);
+            out << buffer;
+        }*/
+        
+        out << "\n";
 	}
 	out << "\n";
 }

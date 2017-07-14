@@ -8,6 +8,10 @@
 
 #include "mythframe.h"
 
+#ifndef CHANNELS_MAX
+#define CHANNELS_MAX 8
+#endif
+
 enum FrameFormat
 {
 	FF_NORMAL    = 0,
@@ -21,6 +25,7 @@ enum FrameFormat
 struct FrameMetadata
 {
 	uint64_t frameNumber;
+    int64_t timeCode;
 	double frameTime;
 	int format;
 	float aspect;
@@ -34,6 +39,9 @@ struct FrameMetadata
 	bool logo;
 	bool scene;
 	bool blank;
+
+    int numChannels;
+    int16_t peakAudio[CHANNELS_MAX+1];
 	
 	FrameMetadata()
 	{
@@ -44,6 +52,7 @@ struct FrameMetadata
 	{
 		aspect = in_aspect;
 		frameNumber = video->frameNumber;
+        timeCode = video->timecode;
 		frameTime = frameNumber / fps;
 		format = FF_NORMAL;
 		logo = scene = blank = false;
@@ -122,13 +131,15 @@ struct FrameMetadata
 			<< "Logo "
 			<< "Scene "
 			<< "Blank "
+            << "#ch "
+            << "Peaks "
 			<< "\n"
 		;
 	}
 	
 	friend std::ostream &operator << (std::ostream &os, FrameMetadata const &meta)
 	{
-		return os 
+		os 
 			<< meta.frameNumber << " " 
 			<< meta.frameTime << " "
 			<< meta.format << " "
@@ -142,14 +153,18 @@ struct FrameMetadata
 			<< (meta.logo ? "Y" : "N") << " "
 			<< (meta.scene ? "Y" : "N") << " "
 			<< (meta.blank ? "Y" : "N") << " "
+            << meta.numChannels
 		;
+        for (int c = 0; c < meta.numChannels; c++)
+            os << " " << meta.peakAudio[c];
+        return os;
 	}
 	
 	friend std::istream &operator >> (std::istream &is, FrameMetadata &meta)
 	{
 		char cl, cs, cb;
 		cl = cs = cb = 'N';
-		
+
 		memset(&meta, 0, sizeof(meta));
 		is 
 			>> meta.frameNumber
@@ -162,8 +177,12 @@ struct FrameMetadata
 			>> meta.brightMaxX
 			>> meta.brightMinY
 			>> meta.brightMaxY
-			>> cl >> cs >> cb;
+			>> cl >> cs >> cb
+            >> meta.numChannels
 		;
+
+        for (int c = 0; c < meta.numChannels; c++)
+            is >> meta.peakAudio[c];
 		
 		meta.logo = cl != 'N';
 		meta.scene = cs != 'N';

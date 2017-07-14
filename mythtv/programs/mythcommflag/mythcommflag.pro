@@ -115,7 +115,6 @@ HEADERS += ./Detector3/BlankDetector.h
 HEADERS += ./Detector3/SceneDetector.h
 HEADERS += ./Detector3/Deinterlacer.h
 HEADERS += ./Detector3/AudioDetector.h
-HEADERS += ./Detector3/AudioSample.h
 
 SOURCES += ./Detector3/CommDetector3.cpp
 SOURCES += ./Detector3/FrameMetadataAggregator.cpp

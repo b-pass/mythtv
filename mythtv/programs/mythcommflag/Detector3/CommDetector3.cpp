@@ -234,13 +234,14 @@ bool CommDetector3::processAll()
     
 	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(30));
 	m_player->ResetTotalDuration();
-	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(0));
+    
+	double fps = m_player->GetDecoder()->GetFPS();
 
     if (m_audioDet)
-        m_audioDet->Enable();
-	
-	double fps = m_player->GetDecoder()->GetFPS();
-	
+        m_audioDet->Enable(fps);
+    
+	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(0));
+
     uint64_t totalFrames;
     if (m_recordingStop < MythDate::current())
         totalFrames = m_player->GetTotalFrameCount();
@@ -251,6 +252,9 @@ bool CommDetector3::processAll()
     
     emit statusUpdate("Processing");
     std::cerr << "Starting processing of " << totalFrames << " frames" << std::endl;
+    
+    emit breathe();
+    usleep(100000);
     
     m_frameLog << "FPS=" << fps << std::endl;
     FrameMetadata::printHeader(m_frameLog);
@@ -316,7 +320,7 @@ bool CommDetector3::processAll()
 					m_logoDet->processFrame(meta, buf, videoSize.width(), videoSize.height(), stride);
 
                 if (m_audioDet)
-                    m_audioDet->processMore(meta, m_aggregator.data());
+                    m_audioDet->getAudio(meta);
 				
 				if (meta.logo)
 					++logoCount;
