@@ -6,6 +6,7 @@
 #include "mythcontext.h"
 #include "programtypes.h"
 
+#include "AudioSample.h"
 #include "FrameMetadataAggregator.h"
 
 FrameMetadataAggregator::FrameMetadataAggregator()
@@ -87,6 +88,11 @@ void FrameMetadataAggregator::add(FrameMetadata const &meta)
 		seg.logoCount++;
 	
 	m_prev = meta;
+}
+
+bool FrameMetadataAggregator::addAudio(AudioSample const *sample)
+{
+    return true;
 }
 
 void FrameMetadataAggregator::calculateBreakList(frm_dir_map_t &output) const

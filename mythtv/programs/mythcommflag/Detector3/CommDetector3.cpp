@@ -17,6 +17,7 @@
 #include "FrameMetadata.h"
 #include "FrameMetadataAggregator.h"
 #include "Deinterlacer.h"
+#include "AudioDetector.h"
 #include "BlankDetector.h"
 #include "SceneDetector.h"
 #include "LogoDetector.h"
@@ -65,7 +66,8 @@ bool CommDetector3::go()
 	m_blankDet.reset();
 	m_sceneDet.reset();
 	m_logoDet.reset();
-	
+    m_audioDet.reset();
+    
 	if (m_method & COMM_DETECT_BLANKS)
 		m_blankDet.reset(new BlankDetector());
 	
@@ -74,6 +76,13 @@ bool CommDetector3::go()
 	
 	if (m_method & COMM_DETECT_LOGO)
 		m_logoDet.reset(new LogoDetector());
+
+    if (m_method & COMM_DETECT_AUDIO)
+    {
+        m_audioDet.reset(new AudioDetector());
+        m_player->GetAudio()->SetAudioOutput(&*m_audioDet);
+        m_player->GetAudio()->ReinitAudio();
+    }
 
     emit statusUpdate("Building Head Start Buffer");
 
@@ -108,7 +117,7 @@ bool CommDetector3::go()
 	
     if (m_logoDet)
 		preSearchForLogo();
-	
+
 	if (!processAll())
 		return false;
 	
@@ -222,10 +231,13 @@ bool CommDetector3::processAll()
     
 	if (!m_logoDet && !m_sceneDet && !m_blankDet)
 		return true;
-	
+    
 	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(30));
 	m_player->ResetTotalDuration();
 	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(0));
+
+    if (m_audioDet)
+        m_audioDet->Enable();
 	
 	double fps = m_player->GetDecoder()->GetFPS();
 	
@@ -302,6 +314,9 @@ bool CommDetector3::processAll()
 				
 				if (m_logoDet)
 					m_logoDet->processFrame(meta, buf, videoSize.width(), videoSize.height(), stride);
+
+                if (m_audioDet)
+                    m_audioDet->processMore(meta, m_aggregator.data());
 				
 				if (meta.logo)
 					++logoCount;
@@ -405,10 +420,14 @@ void CommDetector3::doUpdate()
 
 void CommDetector3::deleteLater(void)
 {
+    if (m_player && m_player->GetAudio())
+        m_player->GetAudio()->SetAudioOutput(NULL);
+    
 	m_aggregator.reset();
 	m_blankDet.reset();
 	m_sceneDet.reset();
 	m_logoDet.reset();
+    m_audioDet.reset();
 	
     CommDetectorBase::deleteLater();
 }
