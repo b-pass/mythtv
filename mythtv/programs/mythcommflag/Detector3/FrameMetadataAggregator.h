@@ -16,8 +16,13 @@ struct ShowSegment
 	uint32_t formatChanges;
 	uint32_t sceneCount;
 	uint32_t logoCount;
-	int32_t score;
+    
+    int numAudioChannels;
+    int16_t peakAudio[CHANNELS_MAX+1];
+    uint64_t totalAudio[CHANNELS_MAX+1];
 	
+	int32_t score;
+    
 	ShowSegment()
 		: frameStart(0)
 		, frameStop(0)
@@ -25,8 +30,11 @@ struct ShowSegment
 		, formatChanges(0)
 		, sceneCount(0)
 		, logoCount(0)
+        , numAudioChannels(0)
 		, score(INT_MIN)
 	{
+        memset(peakAudio, 0, sizeof(peakAudio));
+        memset(totalAudio, 0, sizeof(totalAudio));
 	}
 	
 	ShowSegment &operator += (ShowSegment const &seg)
@@ -37,10 +45,19 @@ struct ShowSegment
 		formatChanges += seg.formatChanges;
 		sceneCount += seg.sceneCount;
 		logoCount += seg.logoCount;
+
+        numAudioChannels = std::max(numAudioChannels, seg.numAudioChannels);
+        for (int c = 0; c < seg.numAudioChannels; c++)
+        {
+            peakAudio[c] = std::max(peakAudio[c], seg.peakAudio[c]);
+            totalAudio[c] += seg.totalAudio[c];
+        }
+        
 		if (score != INT_MIN && seg.score != INT_MIN)
 			score += seg.score;
 		else
 			score = INT_MIN;
+        
 		return *this;
 	}
 };
@@ -48,19 +65,22 @@ struct ShowSegment
 class FrameMetadataAggregator
 {
 public:
+    static bool scoreDebugging;
+    
 	FrameMetadataAggregator();
 	
 	void configure(double frameRate,
 					bool logo,
-					bool scene);
+					bool scene,
+                    bool audio);
 	void add(FrameMetadata const &meta);
     
-	void calculateBreakList(frm_dir_map_t &breakList) const;
+	void calculateBreakList(frm_dir_map_t &breakList);
 	
 	void print(std::ostream &out, bool verbose = false) const;
 	
 private:
-	QList<ShowSegment> coalesce() const;
+	QList<ShowSegment> coalesce();
 	void calculateSegmentScore(ShowSegment &seg) const;
 	void dump(std::ostream &out, 
 				QList<ShowSegment> const &segments, 
@@ -74,9 +94,9 @@ private:
 	
 	FrameMetadata m_prev;
 	int m_currentFormat;
+    bool m_showHasCenterAudio;
 	double m_frameRate;
-	bool m_logo;
-	bool m_scene;
+	bool m_logo, m_scene, m_audio;
 	
 	QList<ShowSegment> m_segments;
 };

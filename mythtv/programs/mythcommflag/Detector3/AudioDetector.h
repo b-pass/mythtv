@@ -32,7 +32,7 @@ public:
     virtual ~AudioDetector();
 
     void Enable(double fps);
-    void getAudio(FrameMetadata &curFrame);
+    void processFrame(FrameMetadata &curFrame);
 
     // AudioOutput overrides:
     virtual void Reconfigure(const AudioSettings &settings);

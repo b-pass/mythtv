@@ -30,12 +30,13 @@ int main(int argc, char *argv[])
 	
 	if (argc < 2)
 	{
-		std::cerr << "Usage: " << argv[0] << "[-nologo] [-noscene] frame.log" << std::endl;
+		std::cerr << "Usage: " << argv[0] << "[-nologo] [-noscene] [-debug] <frame.log|-->" << std::endl;
 		return 1;
 	}
 
-    bool logoDet = true, sceneDet = true;
-    char const *filename = "/dev/null";
+    bool logoDet = true, sceneDet = true, audioDet = true;
+    std::istream *is = nullptr;
+    std::ifstream ifs;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -45,48 +46,55 @@ int main(int argc, char *argv[])
                 logoDet = false;
             else if (strcasecmp(argv[i], "-noscene") == 0)
                 sceneDet = false;
+            else if (strcasecmp(argv[i], "-noaudio") == 0)
+                audioDet = false;
+            else if (strcasecmp(argv[i], "-debug") == 0)
+                FrameMetadataAggregator::scoreDebugging = true;
+            else if (strcasecmp(argv[i], "--") == 0)
+                is = &std::cin;
         }
         else
         {
-            filename = argv[i];
+            ifs.close();
+            ifs.clear();
+            ifs.open(argv[i]);
+            ifs.peek();
+            if (!ifs)
+            {
+                std::cerr << "Failed to open/read " << argv[i] << std::endl;
+                return 1;
+            }
+            is = &ifs;
         }
     }
-	
-	std::ifstream ifs(filename);
-	ifs.peek();
-	if (!ifs)
-	{
-		std::cerr << "Failed to read " << filename << std::endl;
-		return 1;
-	}
 	
 	std::cerr << "Reading... " << std::endl;
 	
 	FrameMetadataAggregator aggregator;
-	aggregator.configure(30, logoDet, sceneDet);
+	aggregator.configure(30, logoDet, sceneDet, audioDet);
 	
 	uint64_t frameCount = 0;
-	while (!!ifs)
+	while (!!*is)
 	{
-		int ch = ifs.peek();
+		int ch = is->peek();
 		if (ch <= 0 || ch == '\r' || ch == '\n')
 		{
-			ifs.ignore(1); // and skip the newline
+			is->ignore(1); // and skip the newline
 			continue;
 		}
 		
 		if (ch == '#' || ch == 'N')
 		{
-			ifs.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+			is->ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 			continue;
 		}
 		
 		if (ch == 'F')
 		{
-			ifs.ignore(4);
+			is->ignore(4);
 			double fps = 30;
-			ifs >> fps;
-			aggregator.configure(fps, logoDet, sceneDet);
+			*is >> fps;
+			aggregator.configure(fps, logoDet, sceneDet, audioDet);
 			continue;
 		}
 		
@@ -97,14 +105,14 @@ int main(int argc, char *argv[])
 		}
 		
 		FrameMetadata meta;
-		ifs >> meta;
-		if (!ifs)
+		*is >> meta;
+		if (!*is)
 			break;
 		
 		aggregator.add(meta);
 		++frameCount;
 		
-		ifs.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+		is->ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	}
 	
 	std::cerr << "Done reading, got " << frameCount << " frames" << std::endl;
@@ -112,11 +120,11 @@ int main(int argc, char *argv[])
 	frm_dir_map_t commercialBreakList;
 	aggregator.calculateBreakList(commercialBreakList);
 	
-	std::cout << "\n\n\n----------------------------" << endl;
+	std::cout << "\n\n\n----------------------------" << std::endl;
 	int count = 0;
     if (commercialBreakList.empty())
     {
-		std::cout << "No breaks" << endl;
+		std::cout << "No breaks" << std::endl;
     }
     else
     {

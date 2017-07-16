@@ -259,7 +259,7 @@ bool CommDetector3::processAll()
     m_frameLog << "FPS=" << fps << std::endl;
     FrameMetadata::printHeader(m_frameLog);
     
-	m_aggregator->configure(fps, !!m_logoDet, !!m_sceneDet);
+	m_aggregator->configure(fps, !!m_logoDet, !!m_sceneDet, !!m_audioDet);
 	
     uint64_t count = 0, logoCount = 0;
     while (m_player->GetEof() == kEofStateNone)
@@ -320,7 +320,7 @@ bool CommDetector3::processAll()
 					m_logoDet->processFrame(meta, buf, videoSize.width(), videoSize.height(), stride);
 
                 if (m_audioDet)
-                    m_audioDet->getAudio(meta);
+                    m_audioDet->processFrame(meta);
 				
 				if (meta.logo)
 					++logoCount;
@@ -400,7 +400,7 @@ bool CommDetector3::processAll()
 	if (logoCount < count / 3)
 		m_logoDet.reset();
 	
-	m_aggregator->configure(fps, !!m_logoDet, !!m_sceneDet);
+	m_aggregator->configure(fps, !!m_logoDet, !!m_sceneDet, !!m_audioDet);
 	
     emit statusUpdate("Done searching");
     std::cerr << "\nDone\n" << std::endl;

@@ -129,7 +129,7 @@ bool AudioDetector::AddData(void *buffer, int len, int64_t timecode, int frames)
     return true;
 }
 
-void AudioDetector::getAudio(FrameMetadata &curFrame)
+void AudioDetector::processFrame(FrameMetadata &curFrame)
 {
     size_t empty = 0;
     while (true)

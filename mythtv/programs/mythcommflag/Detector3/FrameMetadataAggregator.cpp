@@ -9,12 +9,16 @@
 
 #include "FrameMetadataAggregator.h"
 
+bool FrameMetadataAggregator::scoreDebugging = false;
+
 FrameMetadataAggregator::FrameMetadataAggregator()
 {
 	m_currentFormat = FF_NORMAL;
+    m_showHasCenterAudio = false;
 	m_frameRate = 1.0;
 	m_logo = false;
 	m_scene = false;
+    m_audio = false;
 	
 	m_maxBreakLength = gCoreContext->GetNumSetting("CommDetectMaxCommBreakLength", 330);
 	m_minBreakLength = gCoreContext->GetNumSetting("CommDetectMinCommBreakLength", 58);
@@ -86,46 +90,21 @@ void FrameMetadataAggregator::add(FrameMetadata const &meta)
 	
 	if (meta.logo)
 		seg.logoCount++;
+
+    seg.numAudioChannels = std::max(seg.numAudioChannels, meta.numChannels);
+    if (seg.numAudioChannels)
+    {
+        for (int c = 0; c < meta.numChannels; c++)
+        {
+            seg.peakAudio[c] = std::max(seg.peakAudio[c], meta.peakAudio[c]);
+            seg.totalAudio[c] += meta.peakAudio[c];
+        }
+    }
 	
 	m_prev = meta;
 }
 
-/*bool FrameMetadataAggregator::addAudio(AudioSample const *sample)
-{
-    printf("Audio @ %ld [%d]: ", sample->time, sample->num_channels);
-    for (int c = 0; c < sample->num_channels; ++c)
-        printf("%5d ", sample->peak[c]);
-    printf("\n");
-    
-    if (m_segments.empty())
-        return false;
-
-    ShowSegment *seg = &m_segments.back();
-    if ((seg->audio.time + seg->audio.duration) < sample->time)
-        return false;
-    
-    if (seg->audio.time > sample->time)
-    {
-        seg = nullptr;
-        for (int i = m_segments.size() - 2; i >= 0; --i)
-        {
-            if (m_segments[i].audio.time <= sample->time)
-            {
-                seg = &m_segments[i];
-                break;
-            }
-        }
-        if (!seg)
-            return false;
-    }
-
-    printf("Found seg @ %ld f=%ld\n", seg->audio.time, seg->frameStart);
-
-    seg->audio += *sample;
-    return true;
-}*/
-
-void FrameMetadataAggregator::calculateBreakList(frm_dir_map_t &output) const
+void FrameMetadataAggregator::calculateBreakList(frm_dir_map_t &output)
 {
 	QList<ShowSegment> const &segments = coalesce();
 	
@@ -178,12 +157,27 @@ void FrameMetadataAggregator::calculateBreakList(frm_dir_map_t &output) const
 		output[prevStop] = MARK_COMM_END;
 }
 
-QList<ShowSegment> FrameMetadataAggregator::coalesce() const
+QList<ShowSegment> FrameMetadataAggregator::coalesce()
 {
 	QList<ShowSegment> segments = m_segments;
 	if (segments.empty())
 		return segments;
 	
+    if (m_audio)
+    {
+        int best = 0;
+        for (int s = 1; s < segments.size(); ++s)
+        {
+            //if (segments[s].score > segments[best].score)
+            if ((segments[s].frameStop - segments[s].frameStart) > (segments[best].frameStop - segments[best].frameStart))
+                best = s;
+        }
+
+        m_showHasCenterAudio =
+            segments[best].numAudioChannels > 2 &&
+            (segments[best].totalAudio[2]/(segments[best].frameStop-segments[best].frameStart+1)) >= 200;
+    }
+    
 	dump(std::cerr, segments, "original");
 	
 	// join all consecutive like segments together
@@ -221,6 +215,7 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 	dump(std::cerr, segments, "easy merge");
 	
 	// join runs of small segments together
+    bool changed = false;
 	for (int b = 0; b < segments.size(); ++b)
 	{
 		int e = b;
@@ -244,6 +239,7 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 		
 		if (b != e)
 		{
+            changed = true;
 			for (int i = b + 1; i < e; ++i)
 			{
 				segments[b] += segments[b+1];
@@ -252,8 +248,9 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 			segments[b].score = INT_MIN;
 		}
 	}
-	
-	dump(std::cerr, segments, "declutter");
+
+    if (changed)
+        dump(std::cerr, segments, "declutter");
 	
 	for (int i = 0; i < segments.size(); ++i)
 	{
@@ -317,7 +314,7 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 			if (newTime < m_maxBreakLength)
 				check.score = -1; // convert it to commercial
 			
-			/* If we got here then converting the show to a commercial 
+			/* If we got here then converting the seg to a commercial 
 			 * is the right call, but doing so would put us over the 
 			 * maxBreakLength.  We err on the side of caution and leave 
 			 * a show segment which is too short rather than a 
@@ -354,17 +351,69 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 
 void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
 {
-    const bool scoreDebugging = false;
+    if (scoreDebugging) std::cerr << std::endl;
     
 	seg.score = 0;
-	
+
 	uint64_t frameCount = seg.frameStop - seg.frameStart + 1;
 	double segTime = frameCount / m_frameRate;
+    
+    if (m_audio && segTime > 1.0)
+    {
+        bool hasCenter = seg.numAudioChannels > 2 &&
+                          (seg.totalAudio[2]/frameCount) >= 200;
+
+        if (hasCenter != m_showHasCenterAudio)
+        {
+            if (scoreDebugging) std::cerr << "Wrong number of audio channels: -25" << std::endl;
+            seg.score -= 25;
+        }
+    }
+    
+    if (m_audio && seg.numAudioChannels > 2)
+    {
+        uint64_t center = seg.totalAudio[2] / frameCount;
+        uint64_t sides = (seg.totalAudio[0] + seg.totalAudio[1]) / 2 / frameCount;
+
+        if (center >= 200)
+        {
+            if (sides * 4 <= center)
+            {
+                if (scoreDebugging) std::cerr << "Center is very loud: +20" << std::endl;
+                seg.score += 20;
+            }
+            else if (sides * 3 <= center)
+            {
+                if (scoreDebugging) std::cerr << "Center is loud: +10" << std::endl;
+                seg.score += 10;
+            }
+            else if (sides * 2 <= center)
+            {
+                if (scoreDebugging) std::cerr << "Center is a little loud: +5" << std::endl;
+                seg.score += 5;
+            }
+            else if (sides * 1.5 <= center)
+            {
+                if (scoreDebugging) std::cerr << "Sides are a little loud: -5" << std::endl;
+                seg.score -= 5;
+            }
+            else if (sides < center)
+            {
+                if (scoreDebugging) std::cerr << "Sides are loud: -10" << std::endl;
+                seg.score -= 10;
+            }
+            else// if (sides >= center)
+            {
+                if (scoreDebugging) std::cerr << "Sides are very loud: -20" << std::endl;
+                seg.score -= 20;
+            }
+        }
+    }
+    
 	if (segTime > m_maxBreakLength)
 	{
-        if (scoreDebugging) std::cerr << "Segment too long to be a break: +1000" << std::endl;
+        if (scoreDebugging) std::cerr << "Too long to be a break: +1000" << std::endl;
 		seg.score = 1000;
-		return;
 	}
 	
 	switch ((int)round(segTime))
@@ -374,7 +423,7 @@ void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
 		case 59: case 60: case 61:
 		case 89: case 90: case 91:
 		case 119:case 120:case 121:
-            if (scoreDebugging) std::cerr << "Segment common break length (" << round(segTime) << "): -15" << std::endl;
+            if (scoreDebugging) std::cerr << "Common break length (" << round(segTime) << "s): -15" << std::endl;
 			// very common lengths 
 			seg.score -= 15;
 			break;;
@@ -384,7 +433,7 @@ void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
 		case 20:
 		case 40:
 		case 45:
-            if (scoreDebugging) std::cerr << "Segment semi-common break length (" << round(segTime) << "): -10" << std::endl;
+            if (scoreDebugging) std::cerr << "Semi-common break length (" << round(segTime) << "s): -10" << std::endl;
 			// less common, but still common-ish
 			seg.score -= 10;
 			break;
@@ -392,22 +441,28 @@ void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
 		default:
 			if (segTime < m_minShowLength)
             {
-                if (scoreDebugging) std::cerr << "Segment shortish (" << round(segTime) << "): -5" << std::endl;
+                if (scoreDebugging) std::cerr << "Shortish (" << round(segTime) << "s): -5" << std::endl;
                 seg.score -= 5;
             }
 			else if (m_maxSingleCommLength && segTime > m_maxSingleCommLength)
             {
-                if (scoreDebugging) std::cerr << "Segment longish (" << round(segTime) << "): +100" << std::endl;
+                if (scoreDebugging) std::cerr << "Longish (" << round(segTime) << "s): +100" << std::endl;
 				seg.score += 100;
             }
 			else if (segTime > 121)
             {
-                if (scoreDebugging) std::cerr << "Segment long (" << round(segTime) << "): +15" << std::endl;
+                if (scoreDebugging) std::cerr << "Long (" << round(segTime) << "s): +15" << std::endl;
 				seg.score += 15;
             }
 			break;
 	}
 	
+    if (seg.frameStart >= m_segments.back().frameStop*95ull/100ull && segTime >= 14.5 && segTime < 45.5 )
+    {
+        if (scoreDebugging) std::cerr << "Possible credit roll: +20" << std::endl;
+        seg.score += 20;
+    }
+    
 	if (m_logo)
 	{
         int logoScore;
@@ -416,7 +471,7 @@ void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
 		else
 			logoScore = signed(seg.logoCount * 100 / frameCount) - 30;
         seg.score += logoScore;
-        if (scoreDebugging) std::cerr << "Segment logo score: " << logoScore << std::endl;
+        if (scoreDebugging) std::cerr << "Logo score: " << logoScore << std::endl;
 	}
 	
 	if (m_scene)
@@ -501,21 +556,50 @@ void FrameMetadataAggregator::dump(
 			seg.formatChanges + seg.sizeChanges,
 			recalc);
 		out << buffer;
-        
-        /*for (int c = 0; c < seg.audio.num_channels; c++)
+
+        out << " " << seg.numAudioChannels << " ";
+        for (int c = 0; c < seg.numAudioChannels; c++)
         {
-            snprintf(buffer, sizeof(buffer), " %5d", seg.audio.peak[c]);
+            snprintf(buffer, sizeof(buffer), " %5d", seg.peakAudio[c]);
             out << buffer;
-        }*/
+        }
+
+        /*
+        double mean = std::accumulate(seg.peakAudio, seg.peakAudio + seg.numAudioChannels, 0.0) / seg.numAudioChannels;
+        double var = 0;
+        for (int c = 0; c < seg.numAudioChannels; c++)
+            var += (seg.peakAudio[c] - mean) * (seg.peakAudio[c] - mean);
+        var = std::sqrt(var / (seg.numAudioChannels - 1));
+        out << " " << var;
+        // double stdev = std::sqrt(std::inner_product(seg.peakAudio, seg.peakAudio + seg.numAudioChannels, seg.peakAudio, 0.0) / seg.numAudioChannels - mean * mean);
+        // out << " " << stdev;
+        */
+
+        /*
+         * scoring idea:
+         *  look at the average for channels 0&1 (L&R) and compare it to the average for 2 (C)
+         * when C is a lot louder, that's show. when L/R/C are similar, thats commercial
+         *
+         * look at highest scoring show segment, see if it has surround channels
+         * look for segments which don't match that (e.g. show has surround, commercial doesn't, or vice versa)
+         */
+
+        uint64_t nAudio = seg.frameStop - seg.frameStart + 1;
+        for (int c = 0; c < seg.numAudioChannels; c++)
+        {
+            snprintf(buffer, sizeof(buffer), " %7.01f", seg.totalAudio[c] / float(nAudio));
+            out << buffer;
+        }
         
         out << "\n";
 	}
 	out << "\n";
 }
 
-void FrameMetadataAggregator::configure(double frameRate, bool logo, bool scene)
+void FrameMetadataAggregator::configure(double frameRate, bool logo, bool scene, bool audio)
 {
 	m_frameRate = std::max(frameRate, 1.0);
 	m_logo = logo;
 	m_scene = scene;
+    m_audio = audio;
 }
