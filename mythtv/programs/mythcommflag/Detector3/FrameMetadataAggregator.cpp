@@ -469,9 +469,9 @@ void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
 		if (segTime < 5)
 			logoScore = (signed(seg.logoCount * 100 / frameCount) - 50) / 5;
 		else
-			logoScore = signed(seg.logoCount * 100 / frameCount) - 30;
+			logoScore = (signed(seg.logoCount * 100 / frameCount) - 40) / 2;
         seg.score += logoScore;
-        if (scoreDebugging) std::cerr << "Logo score: " << logoScore << std::endl;
+        if (scoreDebugging) std::cerr << "Logo score: " << (logoScore > 0 ? "+" : "") << logoScore << std::endl;
 	}
 	
 	if (m_scene)

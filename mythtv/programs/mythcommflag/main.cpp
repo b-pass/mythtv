@@ -1261,7 +1261,7 @@ int main(int argc, char *argv[])
         else
             JobQueue::ChangeJobStatus(jobID, JOB_FINISHED,
                 QCoreApplication::translate("(mythcommflag)",
-                                            "%n commercial break(s)",
+                                            "%1 commercial breaks",
                                             "Job status").arg(ret));
     }
     else if (cmdline.toBool("video"))
@@ -1296,7 +1296,9 @@ int main(int argc, char *argv[])
             // pass chanid and starttime
             // inefficient, but it lets the other function
             // handle sanity checking
-            if (cmdline.toBool("rebuild"))
+            if (cmdline.toBool("queue"))
+                result = QueueCommFlagJob(pginfo.GetChanID(), pginfo.GetRecordingStartTime(), cmdline.toBool("rebuild"));
+            else if (cmdline.toBool("rebuild"))
                 result = RebuildSeekTable(pginfo.GetChanID(),
                                           pginfo.GetRecordingStartTime(),
                                           -1);

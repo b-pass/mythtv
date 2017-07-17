@@ -156,8 +156,8 @@ void CommDetector3::preSearchForLogo()
 	}	
 	else
 	{
-		// where possible, use the middle of the show
-		start = m_player->GetTotalFrameCount() / 2 - uint64_t(300*fps);
+		// Use the end of the first 1/3rd of the show
+		start = m_player->GetTotalFrameCount() / 3 - uint64_t(300*fps);
 		stop = start + uint64_t(600 * fps);
 	}
 	
