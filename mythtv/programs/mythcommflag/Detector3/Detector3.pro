@@ -19,9 +19,15 @@ HEADERS += FrameMetadata.h
 HEADERS += FrameMetadataAggregator.h
 
 SOURCES += FrameMetadataAggregator.cpp
+
+cd3_reprocess {
+TARGET=cd3_reprocess
 SOURCES += Reprocess.cpp
-
-
+}
+cd3_preprocess {
+TARGET=cd3_preprocess
+SOURCES += Preprocess.cpp
+}
 
 #The following line was inserted by qt3to4
 QT += xml sql network

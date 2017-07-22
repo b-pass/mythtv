@@ -65,20 +65,20 @@ struct ShowSegment
 class FrameMetadataAggregator
 {
 public:
-    static bool scoreDebugging;
-    
+	static bool scoreDebugging;
+	
 	FrameMetadataAggregator();
 	
 	void configure(double frameRate,
-					bool logo,
-					bool scene,
-                    bool audio);
+			bool logo,
+			bool scene,
+			bool audio);
 	void add(FrameMetadata const &meta);
     
 	void calculateBreakList(frm_dir_map_t &breakList);
 	
 	void print(std::ostream &out, bool verbose = false) const;
-	
+
 private:
 	QList<ShowSegment> coalesce();
 	void calculateSegmentScore(ShowSegment &seg) const;
@@ -94,7 +94,7 @@ private:
 	
 	FrameMetadata m_prev;
 	int m_currentFormat;
-    bool m_showHasCenterAudio;
+	bool m_showHasCenterAudio;
 	double m_frameRate;
 	bool m_logo, m_scene, m_audio;
 	

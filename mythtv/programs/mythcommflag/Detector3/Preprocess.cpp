@@ -25,16 +25,12 @@ int main(int argc, char *argv[])
 		return 1;
 	}
     
-    //verboseMask = VB_STDIO|VB_FLUSH|VB_GENERAL|VB_COMMFLAG;
-    //logStart(QString(), 0, 0, -2, LOG_DEBUG, false, false, true);
-	
 	if (argc < 2)
 	{
-		std::cerr << "Usage: " << argv[0] << "[-nologo] [-noscene] [-debug] <frame.log|-->" << std::endl;
+		std::cerr << "Usage: " << argv[0] << "[-nologo] [-noscene] <frame.log|-->" << std::endl;
 		return 1;
 	}
 
-    bool verbose = false;
     bool logoDet = true, sceneDet = true, audioDet = true;
     std::istream *is = nullptr;
     std::ifstream ifs;
@@ -49,10 +45,6 @@ int main(int argc, char *argv[])
                 sceneDet = false;
             else if (strcasecmp(argv[i], "-noaudio") == 0)
                 audioDet = false;
-            else if (strcasecmp(argv[i], "-debug") == 0)
-                FrameMetadataAggregator::scoreDebugging = true;
-            else if (strcasecmp(argv[i], "-verbose") == 0 || strcasecmp(argv[i], "-v") == 0)
-                verbose = true;
             else if (strcasecmp(argv[i], "--") == 0)
                 is = &std::cin;
         }
@@ -70,9 +62,7 @@ int main(int argc, char *argv[])
             is = &ifs;
         }
     }
-	if (verbose)
-		std::cerr << "Reading... " << std::endl;
-	
+    
 	FrameMetadataAggregator aggregator;
 	aggregator.configure(30, logoDet, sceneDet, audioDet);
 	
@@ -118,36 +108,10 @@ int main(int argc, char *argv[])
 		is->ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	}
 	
-	if (verbose)
-		std::cerr << "Done reading, got " << frameCount << " frames" << std::endl;
 	std::cout << frameCount << std::endl;
 	std::cout << fps << std::endl;
 	std::cout << std::endl;
-	
-	frm_dir_map_t commercialBreakList;
-	aggregator.calculateBreakList(commercialBreakList);
-	
-	std::cout << "\n\n\n----------------------------" << std::endl;
-	int count = 0;
-	if (commercialBreakList.empty())
-	{
-		std::cout << "No breaks" << std::endl;
-	}
-	else
-	{
-        	frm_dir_map_t::const_iterator it;
-	        for (it = commercialBreakList.begin(); 
-			it != commercialBreakList.end();
-			++it)
-		{
-			std::cout << "framenum: " << it.key() << "\tmarktype: " << *it << std::endl;
-			if (*it == MARK_COMM_START)
-				++count;
-		}
-	}
-	
-	std::cout << "----------------------------" << std::endl;
-	std::cout << count << std::endl;
+    aggregator.print(std::cout);
 	
 	return 0;
 }
