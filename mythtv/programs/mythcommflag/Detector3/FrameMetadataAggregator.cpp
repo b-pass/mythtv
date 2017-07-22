@@ -31,20 +31,37 @@ FrameMetadataAggregator::FrameMetadataAggregator()
 
 void FrameMetadataAggregator::add(FrameMetadata const &meta)
 {
-	if (meta.blank)
-	{
-		m_prev = meta;
-		return;
-	}
-	
-	if (m_prev.blank)
+	if (meta.blank && m_segments.empty())
+    {
+        m_prev = meta;
+        return;
+    }
+    
+	if (m_prev.blank && !meta.blank)
 	{
 		m_segments.push_back(ShowSegment());
 		m_segments.back().frameStart = meta.frameNumber;
 	}
 	
 	ShowSegment &seg = m_segments.back();
-	
+
+    seg.numAudioChannels = std::max(seg.numAudioChannels, meta.numChannels);
+    seg.audioCount ++;
+    if (seg.numAudioChannels)
+    {
+        for (int c = 0; c < meta.numChannels; c++)
+        {
+            seg.peakAudio[c] = std::max(seg.peakAudio[c], meta.peakAudio[c]);
+            seg.totalAudio[c] += meta.peakAudio[c];
+        }
+    }
+
+    if (meta.blank)
+    {
+        m_prev = meta;
+        return;
+    }
+    
 	seg.frameStop = meta.frameNumber;
 	
 	if (meta.frameNumber > 1)
@@ -90,16 +107,6 @@ void FrameMetadataAggregator::add(FrameMetadata const &meta)
 	
 	if (meta.logo)
 		seg.logoCount++;
-
-    seg.numAudioChannels = std::max(seg.numAudioChannels, meta.numChannels);
-    if (seg.numAudioChannels)
-    {
-        for (int c = 0; c < meta.numChannels; c++)
-        {
-            seg.peakAudio[c] = std::max(seg.peakAudio[c], meta.peakAudio[c]);
-            seg.totalAudio[c] += meta.peakAudio[c];
-        }
-    }
 	
 	m_prev = meta;
 }
@@ -557,38 +564,24 @@ void FrameMetadataAggregator::dump(
 			recalc);
 		out << buffer;
 
-        out << " " << seg.numAudioChannels << " ";
-        for (int c = 0; c < seg.numAudioChannels; c++)
+        if (seg.audioCount && seg.numAudioChannels)
         {
-            snprintf(buffer, sizeof(buffer), " %5d", seg.peakAudio[c]);
-            out << buffer;
+            out << " " << seg.numAudioChannels << " ";
+            for (int c = 0; c < seg.numAudioChannels; c++)
+            {
+                snprintf(buffer, sizeof(buffer), " %5d", seg.peakAudio[c]);
+                out << buffer;
+            }
+        
+            for (int c = 0; c < seg.numAudioChannels; c++)
+            {
+                snprintf(buffer, sizeof(buffer), " %7.01f", seg.totalAudio[c] / float(seg.audioCount));
+                out << buffer;
+            }
         }
-
-        /*
-        double mean = std::accumulate(seg.peakAudio, seg.peakAudio + seg.numAudioChannels, 0.0) / seg.numAudioChannels;
-        double var = 0;
-        for (int c = 0; c < seg.numAudioChannels; c++)
-            var += (seg.peakAudio[c] - mean) * (seg.peakAudio[c] - mean);
-        var = std::sqrt(var / (seg.numAudioChannels - 1));
-        out << " " << var;
-        // double stdev = std::sqrt(std::inner_product(seg.peakAudio, seg.peakAudio + seg.numAudioChannels, seg.peakAudio, 0.0) / seg.numAudioChannels - mean * mean);
-        // out << " " << stdev;
-        */
-
-        /*
-         * scoring idea:
-         *  look at the average for channels 0&1 (L&R) and compare it to the average for 2 (C)
-         * when C is a lot louder, that's show. when L/R/C are similar, thats commercial
-         *
-         * look at highest scoring show segment, see if it has surround channels
-         * look for segments which don't match that (e.g. show has surround, commercial doesn't, or vice versa)
-         */
-
-        uint64_t nAudio = seg.frameStop - seg.frameStart + 1;
-        for (int c = 0; c < seg.numAudioChannels; c++)
+        else
         {
-            snprintf(buffer, sizeof(buffer), " %7.01f", seg.totalAudio[c] / float(nAudio));
-            out << buffer;
+            out << " 0";
         }
         
         out << "\n";
@@ -602,4 +595,64 @@ void FrameMetadataAggregator::configure(double frameRate, bool logo, bool scene,
 	m_logo = logo;
 	m_scene = scene;
     m_audio = audio;
+}
+
+void FrameMetadataAggregator::nnprint(std::ostream &out) const
+{
+    out << m_segments.back().frameStop / m_frameRate << "\n";
+	
+	for (int i = 0; i < m_segments.size(); ++i)
+	{
+		ShowSegment seg = m_segments[i]; // not a ref!
+		if (seg.score == INT_MIN)
+			calculateSegmentScore(seg);
+		
+		uint64_t totalFrames = seg.frameStop - seg.frameStart + 1;
+		double totalTime = totalFrames / m_frameRate;
+		double secs_per_scene = m_scene && seg.sceneCount ? totalTime / seg.sceneCount : -1.0;
+
+        out << seg.score << " "
+            << seg.frameStart / m_frameRate << " "
+            << totalTime << " "
+            << secs_per_scene << " "
+            << (m_logo ? seg.logoCount * 100 / (totalFrames ? totalFrames : 1) : 0) << " "
+            << seg.formatChanges + seg.sizeChanges << " "
+        ;
+
+        uint64_t lr = 0, lrCount = 1;
+        uint64_t c = 0;
+        uint64_t surr = 0, surrCount = 0;
+        if (seg.numAudioChannels && seg.audioCount)
+        {
+            lr += seg.totalAudio[0];
+            if (seg.numAudioChannels > 1)
+            {
+                lr += seg.totalAudio[1];
+                lrCount++;
+
+                if (seg.numAudioChannels > 2)
+                {
+                    c = seg.totalAudio[2];
+
+                    for (int c = 3; c < seg.numAudioChannels; c++)
+                    {
+                        surr += seg.totalAudio[c];
+                        surrCount++;
+                    }
+                }
+            }
+        }
+
+        out << (lr / (seg.audioCount * lrCount)) << " ";
+        out << c / seg.audioCount << " ";
+
+        if (surrCount)
+            out << surr / (seg.audioCount * surrCount);
+        else
+            out << "0";
+
+        out << "\n";
+	}
+    
+	out << std::flush;
 }

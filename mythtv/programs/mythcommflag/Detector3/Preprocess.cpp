@@ -108,10 +108,7 @@ int main(int argc, char *argv[])
 		is->ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	}
 	
-	std::cout << frameCount << std::endl;
-	std::cout << fps << std::endl;
-	std::cout << std::endl;
-    aggregator.print(std::cout);
+    aggregator.nnprint(std::cout);
 	
 	return 0;
 }

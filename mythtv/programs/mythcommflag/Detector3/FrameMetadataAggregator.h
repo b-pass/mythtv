@@ -20,6 +20,7 @@ struct ShowSegment
     int numAudioChannels;
     int16_t peakAudio[CHANNELS_MAX+1];
     uint64_t totalAudio[CHANNELS_MAX+1];
+    uint32_t audioCount;
 	
 	int32_t score;
     
@@ -31,6 +32,7 @@ struct ShowSegment
 		, sceneCount(0)
 		, logoCount(0)
         , numAudioChannels(0)
+        , audioCount(0)
 		, score(INT_MIN)
 	{
         memset(peakAudio, 0, sizeof(peakAudio));
@@ -52,6 +54,7 @@ struct ShowSegment
             peakAudio[c] = std::max(peakAudio[c], seg.peakAudio[c]);
             totalAudio[c] += seg.totalAudio[c];
         }
+        audioCount += seg.audioCount;
         
 		if (score != INT_MIN && seg.score != INT_MIN)
 			score += seg.score;
@@ -78,6 +81,8 @@ public:
 	void calculateBreakList(frm_dir_map_t &breakList);
 	
 	void print(std::ostream &out, bool verbose = false) const;
+
+    void nnprint(std::ostream &out) const;
 
 private:
 	QList<ShowSegment> coalesce();
