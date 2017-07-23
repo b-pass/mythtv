@@ -47,13 +47,10 @@ void FrameMetadataAggregator::add(FrameMetadata const &meta)
 
     seg.numAudioChannels = std::max(seg.numAudioChannels, meta.numChannels);
     seg.audioCount ++;
-    if (seg.numAudioChannels)
+    for (int c = 0; c < meta.numChannels; c++)
     {
-        for (int c = 0; c < meta.numChannels; c++)
-        {
-            seg.peakAudio[c] = std::max(seg.peakAudio[c], meta.peakAudio[c]);
-            seg.totalAudio[c] += meta.peakAudio[c];
-        }
+        seg.peakAudio[c] = std::max(seg.peakAudio[c], meta.peakAudio[c]);
+        seg.totalAudio[c] += meta.peakAudio[c];
     }
 
     if (meta.blank)
@@ -599,26 +596,34 @@ void FrameMetadataAggregator::configure(double frameRate, bool logo, bool scene,
 
 void FrameMetadataAggregator::nnprint(std::ostream &out) const
 {
-    out << m_segments.back().frameStop / m_frameRate << "\n";
+    double duration = m_segments.back().frameStop / m_frameRate;
+    out << int(duration / 60.0) << ':' << (duration - int(duration/60.0)*60) << "\n";
 	
 	for (int i = 0; i < m_segments.size(); ++i)
 	{
 		ShowSegment seg = m_segments[i]; // not a ref!
 		if (seg.score == INT_MIN)
 			calculateSegmentScore(seg);
-		
+
+        double curTime = seg.frameStart / m_frameRate;
 		uint64_t totalFrames = seg.frameStop - seg.frameStart + 1;
 		double totalTime = totalFrames / m_frameRate;
-		double secs_per_scene = m_scene && seg.sceneCount ? totalTime / seg.sceneCount : -1.0;
+		double secs_per_scene = m_scene && seg.sceneCount ? totalTime / seg.sceneCount : totalTime;
 
-        out << seg.score << " "
-            << seg.frameStart / m_frameRate << " "
-            << totalTime << " "
-            << secs_per_scene << " "
-            << (m_logo ? seg.logoCount * 100 / (totalFrames ? totalFrames : 1) : 0) << " "
-            << seg.formatChanges + seg.sizeChanges << " "
-        ;
-
+        char buffer[256];
+		snprintf(buffer, sizeof(buffer),
+			"%-5d %02d:%04.01lf %6ld-%6ld %6.01lf %2d %5.01lf %3ld %3d ",
+            seg.score,
+            int(curTime/60.0), (curTime - int(curTime/60.0)*60),
+			seg.frameStart, seg.frameStop,
+            totalTime,
+            (curTime+totalTime < 600) ? -1 : (duration - curTime < 600) ? 1 : 0,
+			secs_per_scene,
+			m_logo ? seg.logoCount * 100 / (totalFrames ? totalFrames : 1) : 0,
+			seg.formatChanges + seg.sizeChanges
+        );
+		out << buffer;
+        
         uint64_t lr = 0, lrCount = 1;
         uint64_t c = 0;
         uint64_t surr = 0, surrCount = 0;

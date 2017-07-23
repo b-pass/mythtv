@@ -3,6 +3,8 @@
 #include <string>
 #include <sstream>
 #include <limits>
+#include <unistd.h>
+#include <glob.h>
 
 #include <QCoreApplication>
 
@@ -11,6 +13,49 @@
 #include "mythlogging.h"
 
 #include "FrameMetadataAggregator.h"
+
+std::string findLog(char const *);
+std::string findLog(char const *file)
+{
+    char *temp = realpath(file, NULL);
+    if (!temp)
+        return file;
+
+    std::string filename = temp;
+    size_t p = filename.rfind('.');
+    if (p == std::string::npos)
+        return filename;
+    
+    if (filename.compare(p, 4, ".mpg", 4) == 0 && p+4 == filename.length())
+        filename.replace(p, 4, ".log*");
+    else if (filename.compare(p, 3, ".ts", 3) == 0 && p+3 == filename.length())
+        filename.replace(p, 3, ".log*");            
+    p = filename.rfind('/');
+    if (p != std::string::npos)
+        filename.insert(p+1, "../*/*");
+    filename.replace(filename.size() - 9, 4, "*");
+    
+    glob_t g;
+    memset(&g, 0, sizeof(g));
+    glob(filename.c_str(), 0, NULL, &g);
+    if (g.gl_pathc)
+    {
+        filename = g.gl_pathv[0];
+        if (filename.compare(filename.size() - 3, 3, ".xz") == 0)
+        {
+            int res = system(("xzcat " + filename + " > /tmp/mcfunxz 2>&1").c_str());
+            if (res == 0)
+                filename = "/tmp/mcfunxz";
+            else
+                std::cerr << "xzcat failed!" << std::endl;
+        }
+        return filename;
+    }
+    else
+    {
+        return file;
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -52,11 +97,12 @@ int main(int argc, char *argv[])
         {
             ifs.close();
             ifs.clear();
-            ifs.open(argv[i]);
+            std::string filename = findLog(argv[i]);
+            ifs.open(filename.c_str());
             ifs.peek();
             if (!ifs)
             {
-                std::cerr << "Failed to open/read " << argv[i] << std::endl;
+                std::cerr << "Failed to open/read " << filename << std::endl;
                 return 1;
             }
             is = &ifs;
@@ -109,6 +155,7 @@ int main(int argc, char *argv[])
 	}
 	
     aggregator.nnprint(std::cout);
-	
+
+    unlink("/tmp/mcfunxz");
 	return 0;
 }

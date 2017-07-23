@@ -47,7 +47,7 @@ CommDetector3::CommDetector3(SkipType commDetectMethod_in,
 #ifdef FRAME_LOGGING
 	QString logFile;
 	if (chanid > 0)
-		logFile = QString("/tmp/mcf_%1_%2.log").arg(chanid).arg(m_start.toString("yyyyMMddhhmmss"));
+		logFile = QString("/tmp/mcf_%1_%2.log").arg(chanid).arg(m_recordingStart.toString("yyyyMMddhhmmss"));
 	else
 		logFile = "/tmp/mcf_frames.log";
 	m_frameLog.open(logFile.toLatin1().data());
