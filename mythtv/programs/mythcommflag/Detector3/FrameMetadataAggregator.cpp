@@ -365,7 +365,7 @@ void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
     if (m_audio && segTime > 1.0)
     {
         bool hasCenter = seg.numAudioChannels > 2 &&
-                          (seg.totalAudio[2]/frameCount) >= 200;
+                          (seg.totalAudio[2]/seg.audioCount) >= 200;
 
         if (hasCenter != m_showHasCenterAudio)
         {
@@ -376,8 +376,8 @@ void FrameMetadataAggregator::calculateSegmentScore(ShowSegment &seg) const
     
     if (m_audio && seg.numAudioChannels > 2)
     {
-        uint64_t center = seg.totalAudio[2] / frameCount;
-        uint64_t sides = (seg.totalAudio[0] + seg.totalAudio[1]) / 2 / frameCount;
+        uint64_t center = seg.totalAudio[2] / seg.audioCount;
+        uint64_t sides = (seg.totalAudio[0] + seg.totalAudio[1]) / 2 / seg.audioCount;
 
         if (center >= 200)
         {
@@ -612,7 +612,7 @@ void FrameMetadataAggregator::nnprint(std::ostream &out) const
 
         char buffer[256];
 		snprintf(buffer, sizeof(buffer),
-			"%-5d %02d:%04.01lf %6ld-%6ld %6.01lf %2d %5.01lf %3ld %3d ",
+			"%-5d %02d:%04.01lf %6ld-%-6ld %6.01lf %2d %5.01lf %3ld %3d ",
             seg.score,
             int(curTime/60.0), (curTime - int(curTime/60.0)*60),
 			seg.frameStart, seg.frameStop,

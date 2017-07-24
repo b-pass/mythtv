@@ -17,15 +17,18 @@
 std::string findLog(char const *);
 std::string findLog(char const *file)
 {
-    char *temp = realpath(file, NULL);
+    char const *temp = realpath(file, NULL);
     if (!temp)
-        return file;
+        temp = file;
 
     std::string filename = temp;
     size_t p = filename.rfind('.');
     if (p == std::string::npos)
         return filename;
     
+    if (filename.compare(p, 4, ".log", 4) == 0 && p+4 == filename.length())
+        return filename;
+        
     if (filename.compare(p, 4, ".mpg", 4) == 0 && p+4 == filename.length())
         filename.replace(p, 4, ".log*");
     else if (filename.compare(p, 3, ".ts", 3) == 0 && p+3 == filename.length())
@@ -140,7 +143,7 @@ int main(int argc, char *argv[])
 		if (!isdigit(ch))
 		{
 			std::cerr << "Unexpected character: " << ch << "=" << (char)ch << std::endl;
-			break;
+			return 2;
 		}
 		
 		FrameMetadata meta;
