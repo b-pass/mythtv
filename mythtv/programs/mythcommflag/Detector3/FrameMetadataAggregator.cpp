@@ -596,20 +596,42 @@ void FrameMetadataAggregator::configure(double frameRate, bool logo, bool scene,
 
 void FrameMetadataAggregator::nnprint(std::ostream &out) const
 {
+    if (m_audio)
+    {
+        int best = 0;
+        for (int s = 1; s < m_segments.size(); ++s)
+        {
+            //if (segments[s].score > segments[best].score)
+            if ((m_segments[s].frameStop - m_segments[s].frameStart) > (m_segments[best].frameStop - m_segments[best].frameStart))
+                best = s;
+        }
+
+        const_cast<FrameMetadataAggregator*>(this)->m_showHasCenterAudio =
+            m_segments[best].numAudioChannels > 2 &&
+            (m_segments[best].totalAudio[2]/(m_segments[best].frameStop-m_segments[best].frameStart+1)) >= 200;
+    }
+    
     double duration = m_segments.back().frameStop / m_frameRate;
     out << int(duration / 60.0) << ':' << (duration - int(duration/60.0)*60) << "\n";
 	
 	for (int i = 0; i < m_segments.size(); ++i)
 	{
 		ShowSegment seg = m_segments[i]; // not a ref!
-		if (seg.score == INT_MIN)
-			calculateSegmentScore(seg);
+		calculateSegmentScore(seg);
 
         double curTime = seg.frameStart / m_frameRate;
 		uint64_t totalFrames = seg.frameStop - seg.frameStart + 1;
 		double totalTime = totalFrames / m_frameRate;
 		double secs_per_scene = m_scene && seg.sceneCount ? totalTime / seg.sceneCount : totalTime;
 
+        int pos_ind = 0;
+        if (curTime + totalTime < 600)
+            pos_ind = -1;
+        else if (duration - curTime < 600)
+            pos_ind = 1;
+        else if (int(curTime)%1800 < 120 || int(curTime)%1800 > 1780 || int(curTime+totalTime)%1800 < 120 || int(curTime+totalTime)%1800 > 1780)
+            pos_ind = 2;
+        
         char buffer[256];
 		snprintf(buffer, sizeof(buffer),
 			"%-5d %02d:%04.01lf %6ld-%-6ld %6.01lf %2d %5.01lf %3ld %3d ",
@@ -617,7 +639,7 @@ void FrameMetadataAggregator::nnprint(std::ostream &out) const
             int(curTime/60.0), (curTime - int(curTime/60.0)*60),
 			seg.frameStart, seg.frameStop,
             totalTime,
-            (curTime+totalTime < 600) ? -1 : (duration - curTime < 600) ? 1 : 0,
+            pos_ind,
 			secs_per_scene,
 			m_logo ? seg.logoCount * 100 / (totalFrames ? totalFrames : 1) : 0,
 			seg.formatChanges + seg.sizeChanges

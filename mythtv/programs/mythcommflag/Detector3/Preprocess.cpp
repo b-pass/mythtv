@@ -46,6 +46,7 @@ std::string findLog(char const *file)
         filename = g.gl_pathv[0];
         if (filename.compare(filename.size() - 3, 3, ".xz") == 0)
         {
+            std::cerr << "xzcat " << filename << std::endl;
             int res = system(("xzcat " + filename + " > /tmp/mcfunxz 2>&1").c_str());
             if (res == 0)
                 filename = "/tmp/mcfunxz";
@@ -101,6 +102,7 @@ int main(int argc, char *argv[])
             ifs.close();
             ifs.clear();
             std::string filename = findLog(argv[i]);
+            std::cerr << "Opening " << filename << std::endl;
             ifs.open(filename.c_str());
             ifs.peek();
             if (!ifs)
