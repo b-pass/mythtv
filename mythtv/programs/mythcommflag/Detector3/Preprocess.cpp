@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
 		is->ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	}
 	
-    aggregator.nnprint(std::cout);
+    aggregator.nnPrint(std::cout);
 
     unlink("/tmp/mcfunxz");
 	return 0;

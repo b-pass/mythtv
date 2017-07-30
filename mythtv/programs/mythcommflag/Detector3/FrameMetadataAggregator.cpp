@@ -108,9 +108,9 @@ void FrameMetadataAggregator::add(FrameMetadata const &meta)
 	m_prev = meta;
 }
 
-void FrameMetadataAggregator::calculateBreakList(frm_dir_map_t &output)
+void FrameMetadataAggregator::calculateBreakList(frm_dir_map_t &output, bool nn)
 {
-	QList<ShowSegment> const &segments = coalesce();
+	QList<ShowSegment> const &segments = nn ? nnCoalesce() : coalesce();
 	
 	bool inBreak = false;
 	uint64_t prevStop = 0;
@@ -594,7 +594,7 @@ void FrameMetadataAggregator::configure(double frameRate, bool logo, bool scene,
     m_audio = audio;
 }
 
-void FrameMetadataAggregator::nnprint(std::ostream &out) const
+void FrameMetadataAggregator::nnPrint(std::ostream &out) const
 {
     if (m_audio)
     {
@@ -612,7 +612,7 @@ void FrameMetadataAggregator::nnprint(std::ostream &out) const
     }
     
     double duration = m_segments.back().frameStop / m_frameRate;
-    out << int(duration / 60.0) << ':' << (duration - int(duration/60.0)*60) << "\n";
+    //out << int(duration / 60.0) << ':' << (duration - int(duration/60.0)*60) << "\n";
 	
 	for (int i = 0; i < m_segments.size(); ++i)
 	{
@@ -682,4 +682,93 @@ void FrameMetadataAggregator::nnprint(std::ostream &out) const
 	}
     
 	out << std::flush;
+}
+
+void FrameMetadataAggregator::nnTweak(unsigned int frameStart, float nnScore)
+{
+    int score;
+    if (nnScore < 0.5)
+        score = -1000;
+    else if (nnScore > 0.5)
+        score = 1000;
+    else
+        score = 0;
+
+    for (int i = 0; i < m_segments.size(); ++i)
+    {
+        if (frameStart < m_segments[i].frameStart)
+            break;
+        if (frameStart == m_segments[i].frameStart)
+        {
+            m_segments[i].score = score;
+            break;
+        }
+    }
+}
+
+QList<ShowSegment> FrameMetadataAggregator::nnCoalesce()
+{
+    QList<ShowSegment> segments = m_segments;
+	if (segments.empty())
+		return segments;
+	
+    dump(std::cerr, segments, "postTweak");
+    
+	// join all consecutive like segments together
+	int i = 1;
+	
+	calculateSegmentScore(segments[0]);
+	while (i < segments.size())
+	{
+		ShowSegment &prev = segments[i - 1];
+		ShowSegment &cur = segments[i];
+		
+		if ((prev.score >= 0 && cur.score >= 0) ||
+			(prev.score < 0 && cur.score < 0))
+		{
+			if (cur.score < 0 && (cur.frameStop - prev.frameStart + 1) / m_frameRate > m_maxBreakLength)
+			{
+				// force positive it if would make a negative seg too long
+				cur.score = 0;
+				++i;
+			}
+			else
+			{
+				prev += cur;
+				segments.removeAt(i);
+			}
+		}
+		else
+		{
+			++i;
+		}
+	}
+	
+	dump(std::cerr, segments, "easy merge");
+	
+	// Find consecutive "breaks" which would be too long together
+	int breakStart = -1;
+	for (int i = 0; i < segments.size(); ++i)
+	{
+		if (segments[i].score < 0)
+		{
+			if (breakStart < 0)
+			{
+				breakStart = i;
+			}
+			else if ((segments[i].frameStop - segments[breakStart].frameStart) / m_frameRate > m_maxBreakLength)
+			{
+				// This segment would put the break over the size limit
+				segments[i].score = 0;
+				breakStart = -1;
+			}
+		}
+		else
+		{
+			breakStart = -1;
+		}
+	}
+	
+	dump(std::cerr, segments, "nnFinal");
+	return segments;
 }

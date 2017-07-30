@@ -78,14 +78,16 @@ public:
 			bool audio);
 	void add(FrameMetadata const &meta);
     
-	void calculateBreakList(frm_dir_map_t &breakList);
+	void calculateBreakList(frm_dir_map_t &breakList, bool nn = false);
 	
 	void print(std::ostream &out, bool verbose = false) const;
 
-    void nnprint(std::ostream &out) const;
+    void nnPrint(std::ostream &out) const;
+    void nnTweak(unsigned int frameStart, float score);
 
 private:
 	QList<ShowSegment> coalesce();
+	QList<ShowSegment> nnCoalesce();
 	void calculateSegmentScore(ShowSegment &seg) const;
 	void dump(std::ostream &out, 
 				QList<ShowSegment> const &segments, 

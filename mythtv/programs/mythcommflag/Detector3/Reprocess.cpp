@@ -3,6 +3,7 @@
 #include <string>
 #include <sstream>
 #include <limits>
+#include <unistd.h>
 
 #include <QCoreApplication>
 
@@ -30,12 +31,13 @@ int main(int argc, char *argv[])
 	
 	if (argc < 2)
 	{
-		std::cerr << "Usage: " << argv[0] << "[-nologo] [-noscene] [-debug] <frame.log|-->" << std::endl;
+		std::cerr << "Usage: " << argv[0] << "[-nologo] [-noscene] [-debug] [-nn] <frame.log|-->" << std::endl;
 		return 1;
 	}
 
     bool verbose = false;
     bool logoDet = true, sceneDet = true, audioDet = true;
+    bool nn = false;
     std::istream *is = nullptr;
     std::ifstream ifs;
 
@@ -53,6 +55,8 @@ int main(int argc, char *argv[])
                 FrameMetadataAggregator::scoreDebugging = true;
             else if (strcasecmp(argv[i], "-verbose") == 0 || strcasecmp(argv[i], "-v") == 0)
                 verbose = true;
+            else if (strcasecmp(argv[i], "-nn") == 0)
+                nn = true;
             else if (strcasecmp(argv[i], "--") == 0)
                 is = &std::cin;
         }
@@ -125,8 +129,31 @@ int main(int argc, char *argv[])
 	std::cout << std::endl;
 	
 	frm_dir_map_t commercialBreakList;
-	aggregator.calculateBreakList(commercialBreakList);
-	
+    if (nn)
+    {
+        unlink("/tmp/mcfnn");
+        {
+            std::ofstream ofs("/tmp/mcfnn");
+            aggregator.nnPrint(ofs);
+            if (!ofs)
+                std::cerr << "Error writing /tmp/mcfnn" << std::endl;
+        }
+        FILE *resf = popen("mythcommflagneural /tmp/mcfnn", "r");
+        while (!feof(resf))
+        {
+            unsigned int fs = 0;
+            float sc = 0.0f;
+            if (fscanf(resf, " %u , %f \n", &fs, &sc) == 2)
+                aggregator.nnTweak(fs, sc);
+            else
+                fgetc(resf);
+        }
+        pclose(resf);
+        unlink("/tmp/mcfnn");
+    }
+    
+    aggregator.calculateBreakList(commercialBreakList, nn);
+    
 	std::cout << "\n\n\n----------------------------" << std::endl;
 	int count = 0;
 	if (commercialBreakList.empty())
