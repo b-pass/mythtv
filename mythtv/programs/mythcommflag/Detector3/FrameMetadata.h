@@ -133,6 +133,7 @@ struct FrameMetadata
 			<< "Blank "
             << "#ch "
             << "Peaks "
+            << "TimeCode "
 			<< "\n"
 		;
 	}
@@ -157,6 +158,7 @@ struct FrameMetadata
 		;
         for (int c = 0; c < meta.numChannels; c++)
             os << " " << meta.peakAudio[c];
+        os << " " << meta.timeCode;
         return os;
 	}
 	
@@ -183,6 +185,8 @@ struct FrameMetadata
 
         for (int c = 0; c < meta.numChannels; c++)
             is >> meta.peakAudio[c];
+
+        is >> meta.timeCode;
 		
 		meta.logo = cl != 'N';
 		meta.scene = cs != 'N';

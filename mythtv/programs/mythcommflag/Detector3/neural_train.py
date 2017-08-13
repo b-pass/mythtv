@@ -139,7 +139,7 @@ for x in range(1000):
                     test_check = 1.0
                 #if test_check >= best_other:
                 best_other = test_check
-                if 1 or best_self > 0.95 and best_other > 0.95:
+                if best_self > 0.95 and best_other > 0.95:
                     score = str(best_self) + '_' + str(best_other)
                     print("New best "+str(best_self)+" | "+str(best_other) + " (saved)")
                     print(saver.save(sess, score + '_' + name))

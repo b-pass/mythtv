@@ -41,6 +41,7 @@ void FrameMetadataAggregator::add(FrameMetadata const &meta)
 	{
 		m_segments.push_back(ShowSegment());
 		m_segments.back().frameStart = meta.frameNumber;
+        m_segments.back().timeCodeStart = meta.timeCode;
 	}
 	
 	ShowSegment &seg = m_segments.back();

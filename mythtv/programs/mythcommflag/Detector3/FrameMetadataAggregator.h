@@ -12,6 +12,7 @@
 struct ShowSegment
 {
 	uint64_t frameStart, frameStop;
+    int64_t timeCodeStart;
 	uint32_t sizeChanges;
 	uint32_t formatChanges;
 	uint32_t sceneCount;
@@ -27,6 +28,7 @@ struct ShowSegment
 	ShowSegment()
 		: frameStart(0)
 		, frameStop(0)
+        , timeCodeStart(0)
 		, sizeChanges(0)
 		, formatChanges(0)
 		, sceneCount(0)
@@ -43,6 +45,7 @@ struct ShowSegment
 	{
 		frameStart = std::min(frameStart, seg.frameStart);
 		frameStop = std::max(frameStop, seg.frameStop);
+        timeCodeStart = std::min(timeCodeStart, seg.timeCodeStart);
 		sizeChanges += seg.sizeChanges;
 		formatChanges += seg.formatChanges;
 		sceneCount += seg.sceneCount;
