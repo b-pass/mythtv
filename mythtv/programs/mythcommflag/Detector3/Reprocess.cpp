@@ -142,8 +142,8 @@ int main(int argc, char *argv[])
         while (!feof(resf))
         {
             unsigned int fs = 0;
-            float sc = 0.0f;
-            if (fscanf(resf, " %u , %f \n", &fs, &sc) == 2)
+            int sc = 0;
+            if (fscanf(resf, " %u , %d \n", &fs, &sc) == 2)
                 aggregator.nnTweak(fs, sc);
             else
                 fgetc(resf);

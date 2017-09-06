@@ -86,7 +86,7 @@ public:
 	void print(std::ostream &out, bool verbose = false) const;
 
     void nnPrint(std::ostream &out) const;
-    void nnTweak(unsigned int frameStart, float score);
+    void nnTweak(unsigned int frameStart, signed int score);
 
 private:
 	QList<ShowSegment> coalesce();

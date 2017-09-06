@@ -623,35 +623,42 @@ void FrameMetadataAggregator::nnPrint(std::ostream &out) const
         double curTime = seg.frameStart / m_frameRate;
 		uint64_t totalFrames = seg.frameStop - seg.frameStart + 1;
 		double totalTime = totalFrames / m_frameRate;
-		double secs_per_scene = m_scene && seg.sceneCount ? totalTime / seg.sceneCount : totalTime;
 
-        int pos_ind = 0;
-        if (curTime + totalTime < 600)
-            pos_ind = -1;
-        else if (duration - curTime < 600)
-            pos_ind = 1;
-        else if (int(curTime)%1800 < 120 || int(curTime)%1800 > 1780 || int(curTime+totalTime)%1800 < 120 || int(curTime+totalTime)%1800 > 1780)
-            pos_ind = 2;
-        
-        char buffer[256];
+        char buffer[64];
 		snprintf(buffer, sizeof(buffer),
-			"%-5d %02d:%04.01lf %6ld-%-6ld %6.01lf %2d %5.01lf %3ld %3d ",
+			"%-5d %02d:%04.01lf %6ld-%-6ld ",
             seg.score,
             int(curTime/60.0), (curTime - int(curTime/60.0)*60),
-			seg.frameStart, seg.frameStop,
-            totalTime,
-            pos_ind,
-			secs_per_scene,
-			m_logo ? seg.logoCount * 100 / (totalFrames ? totalFrames : 1) : 0,
-			seg.formatChanges + seg.sizeChanges
+			seg.frameStart, seg.frameStop
         );
 		out << buffer;
+
+        // segment time, max 600s
+        out << (std::min(totalTime, 600.0) / 600.0) << " ";
+
+        // segment position (beg/end=1, every 30 mins=0.5, other=0)
+        if (curTime + totalTime < 600 || duration - curTime < 600)
+            out << "1 ";
+        else if (int(curTime)%1800 < 120 || int(curTime)%1800 > 1780 || int(curTime+totalTime)%1800 < 120 || int(curTime+totalTime)%1800 > 1780)
+            out << "0.5 ";
+        else
+            out << "0 ";
+
+        // scenes per second
+        out << std::min(totalTime > 0 ? seg.sceneCount / totalTime : 0.0, 1.0) << " ";
+
+        // logo percent
+        out << (m_logo && totalFrames ? seg.logoCount / double(totalFrames) : 0.0) << " ";
+
+        // format and size changes, max 4
+        out << std::min((seg.formatChanges + seg.sizeChanges) / 4.0, 1.0) << " ";
         
-        uint64_t lr = 0, lrCount = 1;
-        uint64_t c = 0;
-        uint64_t surr = 0, surrCount = 0;
         if (seg.numAudioChannels && seg.audioCount)
         {
+            uint64_t lr = 0, lrCount = 1;
+            uint64_t c = 0;
+            uint64_t surr = 0, surrCount = 0;
+            
             lr += seg.totalAudio[0];
             if (seg.numAudioChannels > 1)
             {
@@ -669,15 +676,19 @@ void FrameMetadataAggregator::nnPrint(std::ostream &out) const
                     }
                 }
             }
+
+            out << std::min((lr / (seg.audioCount * lrCount)) / 32768.0, 1.0) << " ";
+            out << std::min((c / seg.audioCount) / 32768.0, 1.0) << " ";
+
+            if (surrCount)
+                out << std::min((surr / (seg.audioCount * surrCount)) / 32768.0, 1.0) << " ";
+            else
+                out << "0 ";
         }
-
-        out << (lr / (seg.audioCount * lrCount)) << " ";
-        out << c / seg.audioCount << " ";
-
-        if (surrCount)
-            out << surr / (seg.audioCount * surrCount);
         else
-            out << "0";
+        {
+            out << "0 0 0 ";
+        }
 
         out << "\n";
 	}
@@ -685,12 +696,12 @@ void FrameMetadataAggregator::nnPrint(std::ostream &out) const
 	out << std::flush;
 }
 
-void FrameMetadataAggregator::nnTweak(unsigned int frameStart, float nnScore)
+void FrameMetadataAggregator::nnTweak(unsigned int frameStart, int nnScore)
 {
     int score;
-    if (nnScore < 0.5)
+    if (nnScore < 0)
         score = -1000;
-    else if (nnScore > 0.5)
+    else if (nnScore > 0)
         score = 1000;
     else
         score = 0;
@@ -717,8 +728,6 @@ QList<ShowSegment> FrameMetadataAggregator::nnCoalesce()
     
 	// join all consecutive like segments together
 	int i = 1;
-	
-	calculateSegmentScore(segments[0]);
 	while (i < segments.size())
 	{
 		ShowSegment &prev = segments[i - 1];
@@ -729,45 +738,78 @@ QList<ShowSegment> FrameMetadataAggregator::nnCoalesce()
 		{
 			if (cur.score < 0 && (cur.frameStop - prev.frameStart + 1) / m_frameRate > m_maxBreakLength)
 			{
-				// force positive it if would make a negative seg too long
-				cur.score = 0;
 				++i;
+                // merge some of the commercial block together up to the min show seg size
+                while (i < segments.size() && segments[i].score < 0 && (cur.frameStop - prev.frameStart + 1) / m_frameRate < m_minShowLength)
+                {
+                    cur += segments[i];
+                    segments.removeAt(i);
+                }
+                // and change it to be a show segment now
+                cur.score = 0;
 			}
 			else
 			{
+                // segments are same type so merge them
 				prev += cur;
 				segments.removeAt(i);
 			}
 		}
 		else
 		{
+            // segments are different types, leave them alone
 			++i;
 		}
 	}
-	
+    
 	dump(std::cerr, segments, "easy merge");
-	
-	// Find consecutive "breaks" which would be too long together
-	int breakStart = -1;
-	for (int i = 0; i < segments.size(); ++i)
+
+    // convert small commercials to show blocks and merge
+    i = 1;
+	while (i+1 < segments.size())
 	{
-		if (segments[i].score < 0)
-		{
-			if (breakStart < 0)
-			{
-				breakStart = i;
-			}
-			else if ((segments[i].frameStop - segments[breakStart].frameStart) / m_frameRate > m_maxBreakLength)
-			{
-				// This segment would put the break over the size limit
-				segments[i].score = 0;
-				breakStart = -1;
-			}
-		}
-		else
-		{
-			breakStart = -1;
-		}
+		ShowSegment &prev = segments[i - 1];
+		ShowSegment &cur = segments[i];
+        ShowSegment &next = segments[i + 1];
+
+        float curLen = (cur.frameStop - prev.frameStart + 1) / m_frameRate;
+		
+		if (prev.score >= 0 && cur.score < 0 && next.score >= 0 && curLen < m_minBreakLength)
+        {
+            cur.score = 1; // convert to a show segment
+            prev += cur;
+            prev += next;
+            segments.removeAt(i);
+            segments.removeAt(i);
+        }
+        else
+        {
+            ++i;
+        }
+	}
+
+    // convert small show blocks to commercials and merge
+    i = 1;
+	while (i+1 < segments.size())
+	{
+		ShowSegment &prev = segments[i - 1];
+		ShowSegment &cur = segments[i];
+        ShowSegment &next = segments[i + 1];
+
+        float curLen = (cur.frameStop - prev.frameStart + 1) / m_frameRate;
+		
+        if (prev.score < 0 && cur.score >= 0 && next.score < 0 && curLen < m_minShowLength)
+        {
+            cur.score = -1; // convert to a break segment
+            prev += cur;
+            prev += next;
+            segments.removeAt(i);
+            segments.removeAt(i);
+        }
+        else
+        {
+            ++i;
+        }
 	}
 	
 	dump(std::cerr, segments, "nnFinal");
