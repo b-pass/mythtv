@@ -8,42 +8,18 @@ import datetime
 
 if len(sys.argv) < 2:
     print(sys.argv[0] + " <file> [model]")
-    print("File format:")
-    print('''
-Truthiness Start Frame-Frame Len Pos Scenes Logo Formats Sides Center Rear
-
-Truthiness = is this a commercial (for training)
-Start = Offset in seconds from start of show (not used)
-Frame-Frame = Range of frame numbers for this segment, used in output
-Len = Length in seconds of segment
-Pos = Normalized position (-1 = first 10 mins, 0 = middle, 1 = last 10 mins)
-Scenes = Scene change rate (seconds per scene)
-Logo = Logo detection (as percent of frames)
-Formats = Number of format changes
-Sides = Average peak audio of left and right channels 
-Center = Average peak audio of center channel
-Read = Average peak audio of rear/surround channels
-
-Truthiness is a raw score, where < 0 is a commercial and > 0 
-is a show segment and == 0 is unknown
-
-Audio should be absolute value peak (from 0 to 32768).  If a channel is 
-not present, set to 0.  If no audio available, set all to zero.
-
-# comment lines and blank lines are legal and ignored
-    ''')
     sys.exit(1)
 
 input_info = []
 input_data = []
 input_answers = []
 
-def load(filename):
+def load(file_obj):
     info = []
     data = []
     answers = []
     haveAnswers = False
-    for line in open(filename, 'r'):
+    for line in file_obj:
         line = line.strip()
         if not line or line[0] == '#':
             continue
@@ -76,7 +52,7 @@ def load(filename):
     
     return (info, data, answers)
 
-(input_info, input_data, input_answers) = load(sys.argv[1])
+(input_info, input_data, input_answers) = load(sys.stdin if sys.argv[1] == '-' else open(sys.argv[1], 'r'))
 
 import tensorflow as tf
 import numpy as np

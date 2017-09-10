@@ -413,7 +413,7 @@ void CommDetector3::doUpdate()
 {
 	frm_dir_map_t newMap;
 	
-	m_aggregator->calculateBreakList(newMap);
+	m_aggregator->calculateBreakList(newMap, !!(m_method&COMM_DETECT_3_NN));
 	
 	if (m_oldMap != newMap)
 	{
@@ -440,11 +440,39 @@ void CommDetector3::GetCommercialBreakList(frm_dir_map_t &marks)
 {
     LOG(VB_COMMFLAG, LOG_INFO, "CommDetect::GetCommBreakMap()");
 
-	if (m_aggregator)
-		m_aggregator->calculateBreakList(marks);
-	else
-		marks.clear();
-	
+    if (!m_aggregator)
+    {
+        marks.clear();
+    }
+    else if (m_method & COMM_DETECT_3_NN)
+    {
+        QString tmp = QString("/tmp/mcf-nn-%1").arg(getpid());
+        {
+            std::ofstream ofs(qPrintable(tmp));
+            m_aggregator->nnPrint(ofs);
+        }
+
+        QString cmd = QString("mythcommflagneural %1").arg(tmp);
+        FILE *resf = popen(qPrintable(cmd), "r");
+        while (!feof(resf))
+        {
+            unsigned int fs = 0;
+            int sc = 0;
+            if (fscanf(resf, " %u , %d \n", &fs, &sc) == 2)
+                m_aggregator->nnTweak(fs, sc);
+            else
+                fgetc(resf);
+        }
+        pclose(resf);
+        unlink(qPrintable(tmp));
+        
+		m_aggregator->calculateBreakList(marks, true);
+    }
+    else
+    {
+        m_aggregator->calculateBreakList(marks, false);
+    }
+    
 	m_frameLog << std::endl << marks.size() << " marks:\n";
 	frm_dir_map_t::const_iterator it;
 	for (it = marks.begin(); it != marks.end(); ++it)

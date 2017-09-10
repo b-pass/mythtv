@@ -130,6 +130,7 @@ static QMap<QString,SkipTypes> *init_skip_types(void)
     (*tmp)["d3_nologo"]   = (SkipTypes)((COMM_DETECT_3 | COMM_DETECT_ALL | COMM_DETECT_AUDIO) & ~COMM_DETECT_LOGO);
     (*tmp)["d3_noaudio"]  = (SkipTypes)(COMM_DETECT_3 | COMM_DETECT_ALL);
     (*tmp)["d3_all"]      = (SkipTypes)(COMM_DETECT_3 | COMM_DETECT_ALL | COMM_DETECT_AUDIO);
+    (*tmp)["d3_nn"]       = (SkipTypes)(COMM_DETECT_3_NN | COMM_DETECT_ALL | COMM_DETECT_AUDIO);
     return tmp;
 }
 

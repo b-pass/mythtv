@@ -59,7 +59,8 @@ void MythCommFlagCommandLineParser::LoadArguments(void)
     add("--method", "commmethod", "",
         "Commercial flagging method[s] to employ:\n"
         "off, blank, scene, blankscene, logo, all, "
-        "d2, d2_logo, d2_blank, d2_scene, d2_all", "")
+        "d2, d2_logo, d2_blank, d2_scene, d2_all, "
+        "d3, d3_nologo, d3_noaudio, d3_all, d3_nn", "")
             ->SetGroup("Commflagging");
     add("--high-resolution", "highres", false,
         "perform commercial detection in actual resolution instead of 1/16th", "");

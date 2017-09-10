@@ -119,7 +119,8 @@ typedef enum SkipTypes {
                                    | COMM_DETECT_BLANKS
                                    | COMM_DETECT_SCENE),
     COMM_DETECT_NG          = 0x00000400,
-    COMM_DETECT_3           = 0x00000800
+    COMM_DETECT_3           = 0x00000800,
+    COMM_DETECT_3_NN        = 0x00001800
 } SkipType;
 
 MPUBLIC QString SkipTypeToString(int);
