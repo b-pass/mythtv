@@ -21,7 +21,7 @@ FrameMetadataAggregator::FrameMetadataAggregator()
     m_audio = false;
 	
 	m_maxBreakLength = gCoreContext->GetNumSetting("CommDetectMaxCommBreakLength", 330);
-	m_minBreakLength = gCoreContext->GetNumSetting("CommDetectMinCommBreakLength", 58);
+	m_minBreakLength = gCoreContext->GetNumSetting("CommDetectMinCommBreakLength", 29);
 	m_minShowLength = gCoreContext->GetNumSetting("CommDetectMinShowLength", 58);
 	m_maxSingleCommLength = gCoreContext->GetNumSetting("CommDetectMaxCommLength", 0);
 	
@@ -772,10 +772,11 @@ QList<ShowSegment> FrameMetadataAggregator::nnCoalesce()
 		ShowSegment &cur = segments[i];
         ShowSegment &next = segments[i + 1];
 
-        float curLen = (cur.frameStop - prev.frameStart + 1) / m_frameRate;
+        float curLen = (cur.frameStop - cur.frameStart + 1) / m_frameRate;
 		
 		if (prev.score >= 0 && cur.score < 0 && next.score >= 0 && curLen < m_minBreakLength)
         {
+            //std::cerr << "convert at " << i << "/" << cur.frameStart << " prev=" << prev.score << " cur=" << cur.score << " next=" << next.score << std::endl;
             cur.score = 1; // convert to a show segment
             prev += cur;
             prev += next;
@@ -784,6 +785,7 @@ QList<ShowSegment> FrameMetadataAggregator::nnCoalesce()
         }
         else
         {
+            //std::cerr << "NO convert at " << i << "/" << cur.frameStart << " prev=" << prev.score << " cur=" << cur.score << " next=" << next.score << std::endl;
             ++i;
         }
 	}
@@ -796,7 +798,7 @@ QList<ShowSegment> FrameMetadataAggregator::nnCoalesce()
 		ShowSegment &cur = segments[i];
         ShowSegment &next = segments[i + 1];
 
-        float curLen = (cur.frameStop - prev.frameStart + 1) / m_frameRate;
+        float curLen = (cur.frameStop - cur.frameStart + 1) / m_frameRate;
 		
         if (prev.score < 0 && cur.score >= 0 && next.score < 0 && curLen < m_minShowLength)
         {
@@ -815,3 +817,4 @@ QList<ShowSegment> FrameMetadataAggregator::nnCoalesce()
 	dump(std::cerr, segments, "nnFinal");
 	return segments;
 }
+
