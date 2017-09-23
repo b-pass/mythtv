@@ -162,7 +162,7 @@ void FrameMetadataAggregator::calculateBreakList(frm_dir_map_t &output, bool nn)
 		output[prevStop] = MARK_COMM_END;
 }
 
-QList<ShowSegment> FrameMetadataAggregator::coalesce()
+QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 {
 	QList<ShowSegment> segments = m_segments;
 	if (segments.empty())
@@ -597,6 +597,8 @@ void FrameMetadataAggregator::configure(double frameRate, bool logo, bool scene,
 
 void FrameMetadataAggregator::nnPrint(std::ostream &out) const
 {
+    QList<ShowSegment> oldSegs = coalesce();
+    
     if (m_audio)
     {
         int best = 0;
@@ -619,6 +621,11 @@ void FrameMetadataAggregator::nnPrint(std::ostream &out) const
 	{
 		ShowSegment seg = m_segments[i]; // not a ref!
 		calculateSegmentScore(seg);
+        for (int j = 0; j < oldSegs.size(); ++j)
+        {
+            if (seg.frameStart >= oldSegs[j].frameStart && seg.frameStart < oldSegs[j].frameStop)
+                seg.score = oldSegs[j].score < 0 ? -1 : +1;
+        }
 
         double curTime = seg.frameStart / m_frameRate;
 		uint64_t totalFrames = seg.frameStop - seg.frameStart + 1;

@@ -89,7 +89,7 @@ public:
     void nnTweak(unsigned int frameStart, signed int score);
 
 private:
-	QList<ShowSegment> coalesce();
+	QList<ShowSegment> coalesce() const;
 	QList<ShowSegment> nnCoalesce();
 	void calculateSegmentScore(ShowSegment &seg) const;
 	void dump(std::ostream &out, 
@@ -104,7 +104,7 @@ private:
 	
 	FrameMetadata m_prev;
 	int m_currentFormat;
-	bool m_showHasCenterAudio;
+	mutable bool m_showHasCenterAudio;
 	double m_frameRate;
 	bool m_logo, m_scene, m_audio;
 	
