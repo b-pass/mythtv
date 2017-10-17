@@ -41,6 +41,7 @@ void FrameMetadataAggregator::add(FrameMetadata const &meta)
 	{
 		m_segments.push_back(ShowSegment());
 		m_segments.back().frameStart = meta.frameNumber;
+		m_segments.back().timeStampStart = meta.frameTime;
         m_segments.back().timeCodeStart = meta.timeCode;
 	}
 	
@@ -614,7 +615,7 @@ void FrameMetadataAggregator::nnPrint(std::ostream &out) const
             (m_segments[best].totalAudio[2]/(m_segments[best].frameStop-m_segments[best].frameStart+1)) >= 200;
     }
     
-    double duration = m_segments.back().frameStop / m_frameRate;
+    double duration = m_segments.back().timeStampStart + (m_segments.back().frameStop -  m_segments.back().frameStart) / m_frameRate;
     //out << int(duration / 60.0) << ':' << (duration - int(duration/60.0)*60) << "\n";
 	
 	for (int i = 0; i < m_segments.size(); ++i)
@@ -627,7 +628,7 @@ void FrameMetadataAggregator::nnPrint(std::ostream &out) const
                 seg.score = oldSegs[j].score < 0 ? -1 : +1;
         }
 
-        double curTime = seg.frameStart / m_frameRate;
+        double curTime = seg.timeStampStart;
 		uint64_t totalFrames = seg.frameStop - seg.frameStart + 1;
 		double totalTime = totalFrames / m_frameRate;
 

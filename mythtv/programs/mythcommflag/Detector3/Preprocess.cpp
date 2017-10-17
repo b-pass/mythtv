@@ -80,6 +80,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+    double fps  = -1;
     bool logoDet = true, sceneDet = true, audioDet = true;
     std::istream *is = nullptr;
     std::ifstream ifs;
@@ -96,6 +97,8 @@ int main(int argc, char *argv[])
                 audioDet = false;
             else if (strcasecmp(argv[i], "--") == 0)
                 is = &std::cin;
+            else if (strcasecmp(argv[i], "-f") == 0)
+                fps = atof(argv[++i]);
         }
         else
         {
@@ -117,7 +120,6 @@ int main(int argc, char *argv[])
 	FrameMetadataAggregator aggregator;
 	aggregator.configure(30, logoDet, sceneDet, audioDet);
 	
-	double fps = 0;
 	uint64_t frameCount = 0;
 	while (!!*is)
 	{
@@ -136,8 +138,11 @@ int main(int argc, char *argv[])
 		
 		if (ch == 'F')
 		{
+            double tmpFps;
 			is->ignore(4);
-			*is >> fps;
+			*is >> tmpFps;
+            if (fps < 1)
+                fps = tmpFps;
 			aggregator.configure(fps, logoDet, sceneDet, audioDet);
 			continue;
 		}
