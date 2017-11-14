@@ -953,6 +953,8 @@ class Tvdb:
         """
         log().debug('Getting season banners for %s' % (sid))
         bannersEt = self._getetsrc(self.config['url_seriesBanner'] % sid)
+        if not bannersEt:
+            return
         banners = {}
         for cur_banner in bannersEt.keys():
             banners_info = self._getetsrc(self.config['url_seriesBannerInfo'] % (sid, cur_banner))
@@ -1076,8 +1078,9 @@ class Tvdb:
 
         url = self.config['url_epInfo'] % sid
         epsEt = self._getetsrc(url, language=self.shows[sid].data[u'language'])
-        for cur_ep in epsEt:
-            self._parseEpisodeInfo(sid, cur_ep)
+        if epsEt:
+            for cur_ep in epsEt:
+                self._parseEpisodeInfo(sid, cur_ep)
 
     def _parseEpisodeInfo(self, sid, cur_ep):
         if self.config['dvdorder']:
