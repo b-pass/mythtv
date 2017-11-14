@@ -677,9 +677,9 @@ void FrameMetadataAggregator::nnPrint(std::ostream &out) const
                 {
                     c = seg.totalAudio[2];
 
-                    for (int c = 3; c < seg.numAudioChannels; c++)
+                    for (int j = 3; j < seg.numAudioChannels; j++)
                     {
-                        surr += seg.totalAudio[c];
+                        surr += seg.totalAudio[j];
                         surrCount++;
                     }
                 }
