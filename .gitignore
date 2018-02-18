@@ -1,6 +1,7 @@
 *.a
 *.o
 moc_*.cpp
+moc_*.h
 *.moc
 *.so
 *.so.*
@@ -36,3 +37,5 @@ release
 bin
 *.ipch
 .directory
+.vscode
+.qmake.stash
