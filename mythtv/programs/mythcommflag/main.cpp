@@ -823,14 +823,10 @@ static int FlagCommercials(ProgramInfo *program_info, int jobid,
             commDetectMethod = (enum SkipTypes)query.value(0).toInt();
             if (commDetectMethod == COMM_DETECT_COMMFREE)
             {
-                // if the channel is commercial free, drop to the default instead
-                commDetectMethod =
+                // duh, don't flag the commercials then
+                commDetectMethod = COMM_DETECT_OFF;
                         (enum SkipTypes)gCoreContext->GetNumSetting(
                                     "CommercialSkipMethod", COMM_DETECT_ALL);
-                LOG(VB_COMMFLAG, LOG_INFO,
-                        QString("Chanid %1 is marked as being Commercial Free, "
-                                "we will use the default commercial detection "
-                                "method").arg(program_info->GetChanID()));
             }
             else if (commDetectMethod == COMM_DETECT_UNINIT)
                 // no value set, so use the database default
