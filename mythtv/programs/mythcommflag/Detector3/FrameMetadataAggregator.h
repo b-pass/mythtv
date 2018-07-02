@@ -93,7 +93,7 @@ public:
 
 private:
 	QList<ShowSegment> coalesce() const;
-	QList<ShowSegment> nnCoalesce();
+	QList<ShowSegment> nnCoalesce() const;
 	void calculateSegmentScore(ShowSegment &seg) const;
 	void dump(std::ostream &out, 
 				QList<ShowSegment> const &segments, 

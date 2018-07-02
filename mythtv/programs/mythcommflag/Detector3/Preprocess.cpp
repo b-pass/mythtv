@@ -36,7 +36,7 @@ std::string findLog(char const *file)
     p = filename.rfind('/');
     if (p != std::string::npos)
         filename.insert(p+1, "../*/*");
-    filename.replace(filename.size() - 9, 4, "*");
+    //filename.replace(filename.size() - 9, 4, "*");
     
     glob_t g;
     memset(&g, 0, sizeof(g));
@@ -46,8 +46,25 @@ std::string findLog(char const *file)
         filename = g.gl_pathv[0];
         if (filename.compare(filename.size() - 3, 3, ".xz") == 0)
         {
-            std::cerr << "xzcat " << filename << std::endl;
-            int res = system(("xzcat " + filename + " > /tmp/mcfunxz 2>&1").c_str());
+            size_t p = filename.rfind('_');
+            std::string chanid, starttime;
+            if (p != std::string::npos && p != 0)
+            {
+				size_t cp = p - 1;
+				while (cp >= 0 && isdigit(filename[cp]))
+					--cp;
+				++cp;
+				chanid = filename.substr(cp, p - cp);
+				size_t sp = p + 1;
+				while (sp < filename.size() && isdigit(filename[sp]))
+					starttime += filename[sp++];
+			}
+			std::string cmd = "xzcat " + filename;
+			if (!chanid.empty() && !starttime.empty())
+				cmd += " | ./fixtimes.py " + chanid + " " + starttime;
+			cmd += " > /tmp/mcfunxz";
+            std::cerr << cmd << std::endl;
+            int res = system(cmd.c_str());
             if (res == 0)
                 filename = "/tmp/mcfunxz";
             else
@@ -76,7 +93,7 @@ int main(int argc, char *argv[])
     
 	if (argc < 2)
 	{
-		std::cerr << "Usage: " << argv[0] << "[-nologo] [-noscene] <frame.log|-->" << std::endl;
+		std::cerr << "Usage: " << argv[0] << " [-nologo] [-noscene] <frame.log|-->" << std::endl;
 		return 1;
 	}
 
