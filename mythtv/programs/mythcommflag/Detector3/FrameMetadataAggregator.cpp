@@ -21,7 +21,7 @@ FrameMetadataAggregator::FrameMetadataAggregator()
     m_audio = false;
 	
 	m_maxBreakLength = gCoreContext->GetNumSetting("CommDetectMaxCommBreakLength", 330);
-	m_minBreakLength = gCoreContext->GetNumSetting("CommDetectMinCommBreakLength", 60);
+	m_minBreakLength = gCoreContext->GetNumSetting("CommDetectMinCommBreakLength", 58);
 	m_minShowLength = gCoreContext->GetNumSetting("CommDetectMinShowLength", 58);
 	m_maxSingleCommLength = gCoreContext->GetNumSetting("CommDetectMaxCommLength", 0);
 	

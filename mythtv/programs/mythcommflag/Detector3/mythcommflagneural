@@ -63,6 +63,9 @@ def load(filename):
         
         answers += [1 if score < 0 else 0]
         info += [parts[2]]
+
+        sec = int(parts[1].split(':')[0])*60 + float(parts[1].split(':')[1])
+        parts[4] = (sec % 3600) / 15.0 / (3600.0/15.0)
         data += [[max(0.0,min(float(x),1.0)) for x in parts[3:]]]
     
     if not haveAnswers:
