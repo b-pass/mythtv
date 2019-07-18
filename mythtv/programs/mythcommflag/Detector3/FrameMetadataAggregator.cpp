@@ -68,6 +68,9 @@ void FrameMetadataAggregator::add(FrameMetadata const &meta)
 		if (meta.aspect != m_prev.aspect)
 			seg.formatChanges++;
 		
+                if (m_prev.numChannels != meta.numChannels)
+                        seg.formatChanges++;
+                
 		// Only change format when we are SURE it's different
 		int prevFormat = m_currentFormat;
 		
