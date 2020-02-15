@@ -39,6 +39,9 @@ def load(filename):
     info = []
     data = []
     answers = []
+    
+    last_ans = 0.0
+    ctime = 0
     for line in open(filename, 'r'):
         line = line.strip()
         if not line or line[0] == '#':
@@ -56,14 +59,28 @@ def load(filename):
         score = int(parts[0])
         if score == 0:
             continue
+        elif score < 0:
+            answers += [[1.0]]
+        else:
+            answers += [[0.0]]
         
+        info += [parts[2]]
+
         sec = int(parts[1].split(':')[0])*60 + float(parts[1].split(':')[1])
         parts[4] = (sec % 3600) / 15.0 / (3600.0/15.0)
-
-        answers += [1 if score <= 0 else 0]
-        info += [parts[2]]
-        data += [[max(0.0,min(float(x),1.0)) for x in parts[3:]]]
-        #data += [[max(0.0,min(round(float(x),3),1.0)) for x in parts[3:]]]
+        
+        d = [max(0.0,min(float(x),1.0)) for x in parts[3:]]
+        d.append(last_ans)
+        #d.append(min(ctime/1200.0, 1.0))
+        data.append(d)
+        
+        if score <= 0:
+            last_ans = 1.0
+            ctime = 0
+        else:
+            last_ans = 0.0
+            ctime += sec
+        
     return (info, data, answers)
 
 input_data = {}
@@ -84,9 +101,6 @@ if "-t" in sys.argv:
         i -= 1
         if f == "-t":
             break
-        if f == '-x':
-            test_data = {}
-            continue
         if not os.path.isfile(f):
             print("Not a file",f)
             continue
@@ -96,41 +110,59 @@ if "-t" in sys.argv:
         test_data[f] = input_data[f]
         del input_data[f]
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
-
-import numpy as np
 import tensorflow as tf
-from tensorflow.contrib.tensor_forest.python import tensor_forest
-from tensorflow.python.ops import resources
+import numpy as np
 
-tf.set_random_seed(int(datetime.datetime.now().timestamp()))
-#tf.set_random_seed(111217)
+#tf.set_random_seed(int(datetime.datetime.now().timestamp()))
+tf.set_random_seed(111712)
 
 num_data_cols = len(next (iter (input_data.values()))[0][0])
-inputs = tf.placeholder(tf.float32, [None, num_data_cols], name="inputs") 
-answers = tf.placeholder(tf.int32, [None], name="answers") 
-tf.placeholder(tf.float32, name="keep_prob") # backward compatability
 
-hparams = tensor_forest.ForestHParams(num_classes=2, num_features=num_data_cols, num_trees=100, max_nodes=10000).fill()
+learning_rate = 0.1
+dropout = 1.0
 
-# Build the Random Forest
-forest_graph = tensor_forest.RandomForestGraphs(hparams)
+inputs = tf.placeholder(tf.float64, [None, num_data_cols], name="inputs") 
+answers = tf.placeholder(tf.float64, [None, 1], name="answers") 
+keep_prob = tf.placeholder(tf.float64, name="keep_prob")
 
-# Get training graph and loss
-train_step = forest_graph.training_graph(inputs, answers)
+network = inputs
+dim = num_data_cols
+h = dim #int((num_data_cols + 1) / 2.0 + 1)
 
-# Measure the accuracy
-keep_prob = tf.placeholder(tf.float32, name="keep_prob") # unused, compatibility with NNs
-network, _, _ = forest_graph.inference_graph(inputs)
-network = tf.argmax(network, 1, name="main")
-correct_prediction = tf.equal(network, tf.cast(answers, tf.int64), name="correct_prediction")
+weights_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[dim, h]))
+biases_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[h]))
+network = tf.matmul(network, weights_h) + biases_h
+name = str(h)
+
+layers = 2
+h = int((h + 1) / layers)
+for i in range(layers):
+    name += '-' + str(h)
+    weights_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[dim, h]))
+    biases_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[h]))
+    network = tf.nn.tanh(tf.matmul(network, weights_h) + biases_h)
+    #network = tf.nn.dropout(network, keep_prob)
+    dim = h
+
+name += '-1'
+weights_out = tf.Variable(tf.random_normal(mean=0.25, stddev=0.1, dtype=tf.float64, shape=[dim, 1]))
+network = tf.matmul(network, weights_out)
+
+loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=answers, logits=network), name="loss")
+network = tf.nn.sigmoid(network, name="main")
+
+#correct_prediction = tf.equal(tf.argmax(network, 1), tf.argmax(answers, 1))
+correct_prediction = tf.equal(tf.less_equal(network, 0.5), tf.less_equal(answers, 0.5), name="correct_prediction")
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float64), name="accuracy")
 
-#with tf.control_dependencies([train_step]):
-#    loss_after_optimizer = tf.identity(loss)
-#    accuracy_after_optimizer = tf.identity(accuracy)
+train_step = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
-name = 'forest'
+with tf.control_dependencies([train_step]):
+    loss_after_optimizer = tf.identity(loss)
+    accuracy_after_optimizer = tf.identity(accuracy)
+
+#name = str(layers) + 'x' + str(h) + '_d' + str(dropout)
+print("Name base = " + name)
 
 all_input_data = []
 all_input_answers = []
@@ -143,70 +175,69 @@ for (f, d) in test_data.items():
     all_test_data += d[0]
     all_test_answers += d[1]
 
-scount = ccount = 0
-for x in all_input_answers:
-    if x > 0.5:
-        ccount += 1
-    else:
-        scount += 1
-
-print("Data counts: Total = %d, Show = %.02f%%, Commercial = %.02f%%" % (ccount+scount, ccount * 100.0/ float(scount+ccount), scount * 100.0 / float(scount + ccount)))
-
-# Initialize the variables (i.e. assign their default value) and forest resources
-init_vars = tf.group(tf.global_variables_initializer(),
-						resources.initialize_resources(resources.shared_resources()))
+all_everything = list(zip(all_input_data, all_input_answers))
+all_input_data, all_input_answers = zip(*all_everything)
 
 sess = tf.InteractiveSession()
+tf.global_variables_initializer().run()
 
-sess.run(init_vars)
-
+#print(sess.run(accuracy, feed_dict={inputs: input_data, keep_prob: 1.0, answers: input_answers}))
 saver = tf.train.Saver()
 best_self = 0
 best_other = 0
-last_print = 0
-test_check = 0
 for x in range(1000000):
     try:
-        z = list(zip(all_input_data, all_input_answers))
-        random.shuffle(z)
-        all_input_data, all_input_answers = zip(*z)
-        for y in range(100):
-            _,self_check = sess.run([train_step, accuracy], feed_dict={inputs: all_input_data, answers: all_input_answers})
-            if self_check > best_self:
+        #for (x,y) in all_everything:
+        #    sess.run([train_step, loss, accuracy], feed_dict={inputs: [x], keep_prob: dropout, answers: [y]})
+        for x in range(100):
+            train_result = sess.run([train_step, loss, accuracy], feed_dict={inputs: all_input_data, keep_prob: dropout, answers: all_input_answers})
+            if train_result[2] > best_self:
                 break
+        if dropout < 1.0:
+            train_result = sess.run([train_step, loss, accuracy], feed_dict={inputs: all_input_data, keep_prob: 1.0, answers: all_input_answers})
+        self_check = train_result[2]
+        self_loss = train_result[1]
         
+        for (f, d) in input_data.items():
+            #for ii in range(len(d[0])):
+            #    a = sess.run(audio, feed_dict={inputs: d[0][ii:ii+1], keep_prob:1.0})
+            #    print(str(ii) + ") a=" + str(a))
+            #for ii in range(len(d[0])):
+            #    c = sess.run(network, feed_dict={inputs: d[0][ii:ii+3], keep_prob:1.0})
+            #    a = sess.run(accuracy, feed_dict={inputs: d[0][ii:ii+3], answers:d[1][ii:ii+3], keep_prob:1.0})
+            #    p = sess.run(correct_prediction, feed_dict={inputs: d[0][ii:ii+3], answers:d[1][ii:ii+3], keep_prob:1.0})
+            #    print(str(ii) + ") ans=" + str(d[1][ii:ii+3]) + " est=" + str(c) + " acc=" + str(a) + ", corr=" + str(p))
+            res = sess.run(accuracy, feed_dict={inputs: d[0], keep_prob: 1.0, answers: d[1]})
+            print(f + " = " + str(res))
+        
+        test_check = 0
         if test_data:
-            test_check = sess.run(accuracy, feed_dict={inputs: all_test_data, answers: all_test_answers})
-        
-        if (self_check - last_print) > 0.01 or self_check >= 0.999:
-            last_print = self_check
-            for (f, d) in input_data.items():
-                #for ii in range(len(d[0])):
-                #    c = sess.run(network, feed_dict={inputs: d[0][ii:ii+3]})
-                #    a = sess.run(accuracy, feed_dict={inputs: d[0][ii:ii+3], answers:d[1][ii:ii+3]})
-                #    p = sess.run(correct_prediction, feed_dict={inputs: d[0][ii:ii+3], answers:d[1][ii:ii+3]})
-                #    print(str(ii) + ") ans=" + str(d[1][ii:ii+3]) + " est=" + str(c) + " acc=" + str(a) + ", corr=" + str(p))
-                res = sess.run(accuracy, feed_dict={inputs: d[0], answers: d[1]})
+            for (f, d) in test_data.items():
+                #for i in range(len(d[0])):
+                #    res = sess.run(network, feed_dict={inputs: [d[0][i]], keep_prob: 1.0, answers: [d[1][i]]})
+                #    if (res[0][0] <= 0.5) != (d[1][i][0] <= 0.5):
+                #        print(f + '[' + str(i) + '] = ' + str(d[1][i]) + ' ? ' + str(res[0]))
+                res = sess.run(accuracy, feed_dict={inputs: d[0], keep_prob: 1.0, answers: d[1]})
                 print(f + " = " + str(res))
-            
-            if test_data:
-                for (f, d) in test_data.items():
-                    res = sess.run(accuracy, feed_dict={inputs: d[0], answers: d[1]})
-                    print(f + " = " + str(res))
-                print("Test Acc:", test_check)
+            test_check = sess.run(accuracy, feed_dict={inputs: all_test_data, keep_prob: 1.0, answers: all_test_answers})
             print("Accuracy:", self_check)
-            #print("Loss    :", self_loss)
+            print("Test Acc:", test_check)
+        else:
+            print("Accuracy:", self_check)
+        print("Loss    :", self_loss)
         
-        if self_check > best_self:# or test_check > best_other:
-            best_self = max(best_self,self_check)
-            best_other = max(best_other,test_check)
-            if self_check >= 0.99:# and (test_check > 0.95 or not test_data):
+        if self_check > best_self or test_check > best_other:# (self_check+test_check) > (best_self+best_other):
+            if self_check >= 0.95 and (test_check > 0.92 or not test_data):
                 score = str(self_check) + '_' + str(test_check)
                 fn = saver.save(sess, './' + score + '_' + name)
                 print("Saved new best", fn)
             else:
                 print("New best "+str(self_check)+" | "+str(test_check))
-        if self_check >= 1.0:
+                
+        best_self = max(best_self,self_check)
+        best_other = max(best_other,test_check)
+        
+        if best_self >= 1.0:
             break
     except KeyboardInterrupt:
         break

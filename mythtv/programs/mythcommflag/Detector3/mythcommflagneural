@@ -90,39 +90,56 @@ else:
 
 extra = '-a' in sys.argv and input_answers
 
-init_vars = tf.group(tf.global_variables_initializer(),
-						resources.initialize_resources(resources.shared_resources()))
+init_vars = tf.group(tf.compat.v1.global_variables_initializer(), resources.initialize_resources(resources.shared_resources()))
 
-sess = tf.Session()
+sess = tf.compat.v1.Session()
 
 sess.run(init_vars)
 
-with sess:
-    saver = tf.train.import_meta_graph(model)
-    saver.restore(sess, model[0:model.rfind('.')])
-    graph = tf.get_default_graph()
+input_data_ext = []
 
-    #Access the appropriate output for fine-tuning
+with sess:
+    saver = tf.compat.v1.train.import_meta_graph(model)
+    saver.restore(sess, model[0:model.rfind('.')])
+    graph = tf.compat.v1.get_default_graph()
+
     inputs = graph.get_tensor_by_name('inputs:0')
     answers = graph.get_tensor_by_name('answers:0')
     network = graph.get_tensor_by_name('main:0')
-    correct_prediction = graph.get_tensor_by_name('correct_prediction:0')
-    accuracy = graph.get_tensor_by_name('accuracy:0')
     keep_prob = graph.get_tensor_by_name('keep_prob:0')
+    if extra:
+        #correct_prediction = graph.get_tensor_by_name('correct_prediction:0')
+        accuracy = graph.get_tensor_by_name('accuracy:0')
+  
+    in_shape = int(inputs.get_shape()[1])
 
-    outputs = sess.run(network,feed_dict={inputs:input_data, keep_prob:1.0})
-    
+    last_ans = 1.0
+    ctime = 0.0
     for i in range(len(input_data)):
+        if in_shape > 8:
+            input_data[i].append(last_ans)
+            if in_shape > 9:
+                input_data[i].append(min(ctime/1200.0, 1.0))
+        input_data_ext.append(input_data[i])
+        
+        output = sess.run(network,feed_dict={inputs:[input_data[i]], keep_prob:1.0})[0]
+        if output > 0.5:
+            last_ans = 1.0
+            ctime = 0.0
+        else:
+            last_ans = 0.0
+            ctime += input_data[i][1]
+
         s = str(input_info[i]).split('-')[0].strip()
         s += ","
-        s += '-1' if outputs[i] > 0.5 else '1'
+        s += '-1' if last_ans else '1'
         
-        if extra:
-            c = sess.run(network, feed_dict={inputs: input_data[i:i+1], keep_prob: 1.0})
-            a = sess.run(accuracy, feed_dict={inputs: input_data[i:i+1], answers: input_answers[i:i+1], keep_prob: 1.0})
-            p = sess.run(correct_prediction, feed_dict={inputs: input_data[i:i+1], answers: input_answers[i:i+1], keep_prob: 1.0})
-            s += ", ans=" + str(input_answers[i:i+1]) + ", est=" + str(c) + ", acc=" + str(a) + ", corr=" + str(p)
+        #if extra:
+        #    a = sess.run(accuracy, feed_dict={inputs: ixd, answers: input_answers[i:i+1], keep_prob: 1.0})
+        #    p = sess.run(correct_prediction, feed_dict={inputs: ixd, answers: input_answers[i:i+1], keep_prob: 1.0})
+        #    s += ", ans=" + str(input_answers[i:i+1]) + ", est=" + str(output) + ", acc=" + str(a) + ", corr=" + str(p)
+
         print(s)
 
     if extra:
-        print("A="+str(sess.run(accuracy,feed_dict={inputs:input_data, answers:input_answers, keep_prob:1.0})))
+        print("A="+str(sess.run(accuracy,feed_dict={inputs:input_data_ext, answers:input_answers, keep_prob:1.0})))
