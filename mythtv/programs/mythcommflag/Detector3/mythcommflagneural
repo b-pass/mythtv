@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+
+from __future__ import print_function
+import sys
+import re
+import random
+import datetime
+import os
+
+if len(sys.argv) < 2:
+    print(sys.argv[0] + " <file> [model] [-a]")
+    print("File format:")
+    print('''
+Truthiness Start Frame-Frame Len Pos Scenes Logo Formats Sides Center Rear
+
+Truthiness = is this a commercial (for training)
+Start = Offset in seconds from start of show (not used)
+Frame-Frame = Range of frame numbers for this segment, used in output
+Len = Length in seconds of segment
+Pos = Normalized position (-1 = first 10 mins, 0 = middle, 1 = last 10 mins)
+Scenes = Scene change rate (seconds per scene)
+Logo = Logo detection (as percent of frames)
+Formats = Number of format changes
+Sides = Average peak audio of left and right channels 
+Center = Average peak audio of center channel
+Read = Average peak audio of rear/surround channels
+
+Truthiness is a raw score, where < 0 is a commercial and > 0 
+is a show segment and == 0 is unknown
+
+Audio should be absolute value peak (from 0 to 32768).  If a channel is 
+not present, set to 0.  If no audio available, set all to zero.
+
+# comment lines and blank lines are legal and ignored
+    ''')
+    sys.exit(1)
+
+input_info = []
+input_data = []
+input_answers = []
+
+def load(filename):
+    info = []
+    data = []
+    answers = []
+    haveAnswers = False
+    for line in open(filename, 'r'):
+        line = line.strip()
+        if not line or line[0] == '#':
+            continue
+        
+        parts = line.split()
+        if len(parts) < 11:
+            print("Ignored bad line: " + line)
+            continue
+        
+        if parts[2][-1] == '-':
+            parts[2] += parts[3]
+            del parts[3]
+        
+        score = int(parts[0])
+        haveAnswers = haveAnswers or score != 0
+        
+        answers += [1 if score < 0 else 0]
+        info += [parts[2]]
+
+        sec = int(parts[1].split(':')[0])*60 + float(parts[1].split(':')[1])
+        parts[4] = (sec % 3600) / 15.0 / (3600.0/15.0)
+        data += [[max(0.0,min(float(x),1.0)) for x in parts[3:]]]
+    
+    if not haveAnswers:
+        answers = []
+    
+    return (info, data, answers)
+
+(input_info, input_data, input_answers) = load(sys.argv[1])
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
+
+import numpy as np
+import tensorflow as tf
+from tensorflow.contrib.tensor_forest.python import tensor_forest
+from tensorflow.python.ops import resources
+
+if len(sys.argv) > 2:
+    model = sys.argv[2]
+    print("Using " + model)
+else:
+    model = '/data/models/mcf.meta'
+
+extra = '-a' in sys.argv and input_answers
+
+init_vars = tf.group(tf.compat.v1.global_variables_initializer(), resources.initialize_resources(resources.shared_resources()))
+
+sess = tf.compat.v1.Session()
+
+sess.run(init_vars)
+
+input_data_ext = []
+
+with sess:
+    saver = tf.compat.v1.train.import_meta_graph(model)
+    saver.restore(sess, model[0:model.rfind('.')])
+    graph = tf.compat.v1.get_default_graph()
+
+    inputs = graph.get_tensor_by_name('inputs:0')
+    answers = graph.get_tensor_by_name('answers:0')
+    network = graph.get_tensor_by_name('main:0')
+    keep_prob = graph.get_tensor_by_name('keep_prob:0')
+    if extra:
+        #correct_prediction = graph.get_tensor_by_name('correct_prediction:0')
+        accuracy = graph.get_tensor_by_name('accuracy:0')
+  
+    in_shape = int(inputs.get_shape()[1])
+
+    last_ans = 1.0
+    ctime = 0.0
+    for i in range(len(input_data)):
+        if in_shape > 8:
+            input_data[i].append(last_ans)
+            if in_shape > 9:
+                input_data[i].append(min(ctime/1200.0, 1.0))
+        input_data_ext.append(input_data[i])
+        
+        output = sess.run(network,feed_dict={inputs:[input_data[i]], keep_prob:1.0})[0]
+        if output > 0.5:
+            last_ans = 1.0
+            ctime = 0.0
+        else:
+            last_ans = 0.0
+            ctime += input_data[i][1]
+
+        s = str(input_info[i]).split('-')[0].strip()
+        s += ","
+        s += '-1' if last_ans else '1'
+        
+        #if extra:
+        #    a = sess.run(accuracy, feed_dict={inputs: ixd, answers: input_answers[i:i+1], keep_prob: 1.0})
+        #    p = sess.run(correct_prediction, feed_dict={inputs: ixd, answers: input_answers[i:i+1], keep_prob: 1.0})
+        #    s += ", ans=" + str(input_answers[i:i+1]) + ", est=" + str(output) + ", acc=" + str(a) + ", corr=" + str(p)
+
+        print(s)
+
+    if extra:
+        print("A="+str(sess.run(accuracy,feed_dict={inputs:input_data_ext, answers:input_answers, keep_prob:1.0})))
