@@ -59,8 +59,11 @@ void MythCommFlagCommandLineParser::LoadArguments(void)
     add("--method", "commmethod", "",
         "Commercial flagging method[s] to employ:\n"
         "off, blank, scene, blankscene, logo, all, "
-        "d2, d2_logo, d2_blank, d2_scene, d2_all", "")
+        "d2, d2_logo, d2_blank, d2_scene, d2_all, "
+	"d3, d3_nologo, d3_noaudio, d3_all, d3_nn", "")
             ->SetGroup("Commflagging");
+    add("--high-resolution", "highres", false,
+        "perform commercial detection in actual resolution instead of 1/16th", "");
     add("--outputmethod", "outputmethod", "",
         "Format of output written to outputfile, essentials, full.", "")
             ->SetGroup("Commflagging");
@@ -83,6 +86,10 @@ void MythCommFlagCommandLineParser::LoadArguments(void)
             ->SetGroup("Advanced");
     add("--dry-run", "dryrun", false,
         "Don't actually queue operation, just list what would be done", "");
+
+    add("--highres", "highres", false, "",
+		"Process inout file in full resolution instead of 1/16")
+            ->SetGroup("Advanced");
 
     add("--sleep", "fullspeed", false, "", "")
             ->SetRemoved("If your system is incapable of performing\n"

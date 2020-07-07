@@ -1368,7 +1368,7 @@ void ClassicCommDetector::BuildAllMethodsCommList(void)
             }
 
             if ((fbp->length > 4) &&
-                (fbp->logoCount > (fbp->frames * 0.60)) &&
+                (!logoInfoAvailable || fbp->logoCount > (fbp->frames * 0.60)) &&
                 (fbp->bfCount < (fbp->frames * 0.10)))
             {
                 if (m_verboseDebugging)

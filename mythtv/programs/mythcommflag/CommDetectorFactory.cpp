@@ -1,7 +1,9 @@
 #include "CommDetectorFactory.h"
-#include "ClassicCommDetector.h"
-#include "CommDetector2.h"
-#include "PrePostRollFlagger.h"
+#include "Classic/ClassicCommDetector.h"
+#include "Detector2/CommDetector2.h"
+#include "PrePostRoll/PrePostRollFlagger.h"
+#include "NextGen/NextgenCommDetector.h"
+#include "Detector3/CommDetector3.h"
 
 class MythPlayer;
 class RemoteEncoder;
@@ -31,6 +33,18 @@ CommDetectorFactory::makeCommDetector(
             commDetectMethod, showProgress, fullSpeed,
             player, chanid, startedAt, stopsAt,
             recordingStartedAt, recordingStopsAt, useDB);
+    }
+
+    if ((commDetectMethod & COMM_DETECT_NG))
+    {
+        return new NextgenCommDetector(commDetectMethod, showProgress, fullSpeed,
+                player, chanid, startedAt, stopsAt, recordingStartedAt, recordingStopsAt);
+    }
+    
+    if ((commDetectMethod & COMM_DETECT_3))
+    {
+        return new CommDetector3(commDetectMethod, showProgress, fullSpeed,
+                player, chanid, startedAt, stopsAt, recordingStartedAt, recordingStopsAt);
     }
 
     return new ClassicCommDetector(commDetectMethod, showProgress, fullSpeed,

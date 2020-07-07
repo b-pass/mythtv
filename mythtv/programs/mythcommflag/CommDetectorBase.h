@@ -11,6 +11,9 @@ using namespace std;
 
 #define MAX_BLANK_FRAMES 180
 
+#define COMM_DETECT_NG_OLD 0x80
+#define COMM_DETECT_LOGO_EXPERIMENTAL 0x40
+
 enum CommMapValue {
     MARK_START   = 0,
     MARK_END     = 1,
