@@ -94,6 +94,7 @@ for f in sys.argv[1:]:
     input_data[f] = (d, a)
 
 test_data = {}
+tdx = 0
 if "-t" in sys.argv:
     i = len(sys.argv) - 1
     while i > 0:
@@ -102,7 +103,10 @@ if "-t" in sys.argv:
         if f == "-t":
             break
         if not os.path.isfile(f):
-            print("Not a file",f)
+            try:
+                tdx = int(f)
+            except:
+                print("Not a file",f)
             continue
         if f not in input_data:
             (ix, d, a) = load(f)
@@ -110,11 +114,14 @@ if "-t" in sys.argv:
         test_data[f] = input_data[f]
         del input_data[f]
 
-import tensorflow as tf
+#import tensorflow as tf
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import numpy as np
 
 #tf.set_random_seed(int(datetime.datetime.now().timestamp()))
 tf.set_random_seed(111712)
+#random.seed(121117)
 
 num_data_cols = len(next (iter (input_data.values()))[0][0])
 
@@ -129,31 +136,47 @@ network = inputs
 dim = num_data_cols
 h = dim #int((num_data_cols + 1) / 2.0 + 1)
 
-weights_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[dim, h]))
-biases_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[h]))
-network = tf.matmul(network, weights_h) + biases_h
+with tf.name_scope('input'):
+    weights_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[dim, h]), name='weights')
+    biases_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[h]), name='biases')
+    tf.summary.histogram("weights", weights_h)
+    tf.summary.histogram("biases", biases_h)
+    network = tf.matmul(network, weights_h) + biases_h
 name = str(h)
 
 layers = 2
 h = int((h + 1) / layers)
 for i in range(layers):
-    name += '-' + str(h)
-    weights_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[dim, h]))
-    biases_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[h]))
-    network = tf.nn.tanh(tf.matmul(network, weights_h) + biases_h)
-    #network = tf.nn.dropout(network, keep_prob)
+    with tf.name_scope('layer' + str(i)):
+        name += '-' + str(h)
+        weights_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[dim, h]), name='weights')
+        biases_h = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[h]), name='biases')
+        network = tf.nn.tanh(tf.matmul(network, weights_h) + biases_h)
+        if dropout < 1.0:
+            network = tf.nn.dropout(network, keep_prob)
+        tf.summary.histogram("weights", weights_h)
+        tf.summary.histogram("biases", biases_h)
+        
     dim = h
 
 name += '-1'
-weights_out = tf.Variable(tf.random_normal(mean=0.25, stddev=0.1, dtype=tf.float64, shape=[dim, 1]))
-network = tf.matmul(network, weights_out)
+if dropout < 1.0:
+    name += '_d' + str(dropout)
 
-loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=answers, logits=network), name="loss")
-network = tf.nn.sigmoid(network, name="main")
+with tf.name_scope('output'):
+    weights_out = tf.Variable(tf.random_normal(mean=0.5, stddev=0.25, dtype=tf.float64, shape=[dim, 1]), name='weights')
+    tf.summary.histogram("weights", weights_out)
+    network = tf.matmul(network, weights_out)
 
-#correct_prediction = tf.equal(tf.argmax(network, 1), tf.argmax(answers, 1))
-correct_prediction = tf.equal(tf.less_equal(network, 0.5), tf.less_equal(answers, 0.5), name="correct_prediction")
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float64), name="accuracy")
+with tf.name_scope('results'):
+    loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=answers, logits=network), name="loss")
+    tf.summary.scalar("loss", loss)
+    network = tf.nn.sigmoid(network, name="main")
+
+    #correct_prediction = tf.equal(tf.argmax(network, 1), tf.argmax(answers, 1))
+    correct_prediction = tf.equal(tf.less_equal(network, 0.5), tf.less_equal(answers, 0.5), name="correct_prediction")
+    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float64), name="accuracy")
+    tf.summary.scalar("accuracy_scalar", accuracy)
 
 train_step = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
@@ -171,12 +194,13 @@ all_test_answers = []
 for (f, d) in input_data.items():
     all_input_data += d[0]
     all_input_answers += d[1]
-for (f, d) in test_data.items():
-    all_test_data += d[0]
-    all_test_answers += d[1]
+if not tdx:
+    for (f, d) in test_data.items():
+        all_test_data += d[0]
+        all_test_answers += d[1]
 
-all_everything = list(zip(all_input_data, all_input_answers))
-all_input_data, all_input_answers = zip(*all_everything)
+#all_everything = list(zip(all_input_data, all_input_answers))
+#all_input_data, all_input_answers = zip(*all_everything)
 
 sess = tf.InteractiveSession()
 tf.global_variables_initializer().run()
@@ -185,11 +209,25 @@ tf.global_variables_initializer().run()
 saver = tf.train.Saver()
 best_self = 0
 best_other = 0
+merged_summary_op = tf.summary.merge_all();
+writer = tf.summary.FileWriter('/tmp/tensorboard', sess.graph)
+
 for x in range(1000000):
+    if tdx:
+        all_input_data += all_test_data
+        all_input_answers += all_test_answers
+        z = list(zip(all_input_data, all_input_answers))
+        random.shuffle(z)
+        p = int(len(z) * float(tdx)/100.0)
+        a = z[0:p]
+        b = z = z[p:]
+        all_test_data, all_test_answers = zip(*a)
+        all_input_data, all_input_answers = zip(*b)
+        tdx = 0
     try:
         #for (x,y) in all_everything:
         #    sess.run([train_step, loss, accuracy], feed_dict={inputs: [x], keep_prob: dropout, answers: [y]})
-        for x in range(100):
+        for y in range(100):
             train_result = sess.run([train_step, loss, accuracy], feed_dict={inputs: all_input_data, keep_prob: dropout, answers: all_input_answers})
             if train_result[2] > best_self:
                 break
@@ -211,7 +249,7 @@ for x in range(1000000):
             print(f + " = " + str(res))
         
         test_check = 0
-        if test_data:
+        if all_test_data:
             for (f, d) in test_data.items():
                 #for i in range(len(d[0])):
                 #    res = sess.run(network, feed_dict={inputs: [d[0][i]], keep_prob: 1.0, answers: [d[1][i]]})
@@ -226,7 +264,7 @@ for x in range(1000000):
             print("Accuracy:", self_check)
         print("Loss    :", self_loss)
         
-        if self_check > best_self or test_check > best_other:# (self_check+test_check) > (best_self+best_other):
+        if self_check > best_self or test_check > best_other :#or (self_check+test_check) > (best_self+best_other):
             if self_check >= 0.95 and (test_check > 0.92 or not test_data):
                 score = str(self_check) + '_' + str(test_check)
                 fn = saver.save(sess, './' + score + '_' + name)
@@ -239,6 +277,9 @@ for x in range(1000000):
         
         if best_self >= 1.0:
             break
+        writer.add_summary(sess.run(merged_summary_op, feed_dict={inputs: all_input_data, keep_prob: dropout, answers: all_input_answers}), x)
+        
     except KeyboardInterrupt:
         break
 print("Stopped")
+writer.close()

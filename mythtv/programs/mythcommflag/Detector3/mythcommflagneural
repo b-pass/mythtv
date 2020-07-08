@@ -75,11 +75,15 @@ def load(filename):
 
 (input_info, input_data, input_answers) = load(sys.argv[1])
 
+os.system('cp '+sys.argv[1]+' /tmp/test')
+
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 import numpy as np
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
 import tensorflow as tf
-from tensorflow.contrib.tensor_forest.python import tensor_forest
+#from tensorflow.contrib.tensor_forest.python import tensor_forest
 from tensorflow.python.ops import resources
 
 if len(sys.argv) > 2:
@@ -102,6 +106,8 @@ with sess:
     saver = tf.compat.v1.train.import_meta_graph(model)
     saver.restore(sess, model[0:model.rfind('.')])
     graph = tf.compat.v1.get_default_graph()
+
+    #writer = tf.summary.FileWriter("output", sess.graph)
 
     inputs = graph.get_tensor_by_name('inputs:0')
     answers = graph.get_tensor_by_name('answers:0')
@@ -141,5 +147,7 @@ with sess:
 
         print(s)
 
+    #writer.close()
     if extra:
         print("A="+str(sess.run(accuracy,feed_dict={inputs:input_data_ext, answers:input_answers, keep_prob:1.0})))
+
