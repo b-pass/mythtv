@@ -94,26 +94,17 @@ static QMap<QString,SkipType> *init_skip_types(void)
     (*tmp)["blank_scene"] = COMM_DETECT_BLANK_SCENE;
     (*tmp)["logo"]        = COMM_DETECT_LOGO;
     (*tmp)["audio"]       = COMM_DETECT_AUDIO;
-    (*tmp)["sub"]         = COMM_DETECT_SUBTITLES;
     (*tmp)["all"]         = COMM_DETECT_ALL;
     (*tmp)["d2"]          = COMM_DETECT_2;
     (*tmp)["d2_logo"]     = COMM_DETECT_2_LOGO;
     (*tmp)["d2_blank"]    = COMM_DETECT_2_BLANK;
     (*tmp)["d2_scene"]    = COMM_DETECT_2_SCENE;
     (*tmp)["d2_all"]      = COMM_DETECT_2_ALL;
-    (*tmp)["ng"]          = (SkipTypes)(COMM_DETECT_NG);
-    (*tmp)["ng_logo"]     = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_LOGO);
-    (*tmp)["ng_blank"]    = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_BLANK);
-    (*tmp)["ng_scene"]    = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_SCENE);
-    (*tmp)["ng_audio"]    = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_AUDIO);
-    (*tmp)["ng_all"]      = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_ALL | COMM_DETECT_AUDIO | COMM_DETECT_SUBTITLES);
-    (*tmp)["ng_allx"]     = (SkipTypes)(COMM_DETECT_NG | COMM_DETECT_ALL | COMM_DETECT_AUDIO | COMM_DETECT_SUBTITLES | COMM_DETECT_LOGO_EXPERIMENTAL);
-    (*tmp)["ng_old"]      = (SkipTypes)(COMM_DETECT_NG_OLD);
     (*tmp)["d3"]          = COMM_DETECT_3;
-    (*tmp)["d3_nologo"]   = (SkipTypes)((COMM_DETECT_3 | COMM_DETECT_ALL | COMM_DETECT_AUDIO) & ~COMM_DETECT_LOGO);
-    (*tmp)["d3_noaudio"]  = (SkipTypes)(COMM_DETECT_3 | COMM_DETECT_ALL);
-    (*tmp)["d3_all"]      = (SkipTypes)(COMM_DETECT_3 | COMM_DETECT_ALL | COMM_DETECT_AUDIO);
-    (*tmp)["d3_nn"]       = (SkipTypes)(COMM_DETECT_3_NN | COMM_DETECT_ALL | COMM_DETECT_AUDIO);
+    (*tmp)["d3_nologo"]   = (SkipType)((COMM_DETECT_3 | COMM_DETECT_ALL | COMM_DETECT_AUDIO) & ~COMM_DETECT_LOGO);
+    (*tmp)["d3_noaudio"]  = (SkipType)(COMM_DETECT_3 | COMM_DETECT_ALL);
+    (*tmp)["d3_all"]      = (SkipType)(COMM_DETECT_3 | COMM_DETECT_ALL | COMM_DETECT_AUDIO);
+    (*tmp)["d3_nn"]       = (SkipType)(COMM_DETECT_3_NN | COMM_DETECT_ALL | COMM_DETECT_AUDIO);
     return tmp;
 }
 
@@ -1258,9 +1249,7 @@ int main(int argc, char *argv[])
     {
         if (cmdline.toBool("skipdb"))
         {
-            if (cmdline.toBool("queue"))
-                result = QueueCommFlagJob(pginfo.GetChanID(), pginfo.GetRecordingStartTime(), cmdline.toBool("rebuild"));
-            else if (cmdline.toBool("rebuild"))
+            if (cmdline.toBool("rebuild"))
             {
                 cerr << "The --rebuild parameter builds the seektable for "
                         "internal MythTV use only. It cannot be used in "

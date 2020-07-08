@@ -27,14 +27,6 @@ SOURCES += commandlineparser.cpp
 SOURCES += CommDetectorFactory.cpp
 SOURCES += CommDetectorBase.cpp
 
-SOURCES += ../../libs/libmythtv/subtitlereader.cpp
-SOURCES += ../../libs/libmythtv/textsubtitleparser.cpp
-SOURCES += ../../libs/libmythtv/xine_demux_sputext.cpp
-SOURCES += ../../libs/libmythtv/teletextreader.cpp
-SOURCES += ../../libs/libmythtv/vbilut.cpp
-SOURCES += ../../libs/libmythtv/filtermanager.cpp
-
-
 
 DEPENDPATH  += ./Classic
 HEADERS += ./Classic/ClassicCommDetector.h
@@ -79,27 +71,6 @@ SOURCES += ./Detector2/SceneChangeDetector.cpp
 DEPENDPATH += ./PrePostRoll
 HEADERS += ./PrePostRoll/PrePostRollFlagger.h
 SOURCES += ./PrePostRoll/PrePostRollFlagger.cpp
-
-
-
-DEPENDPATH  += ./NextGen
-HEADERS += ./NextGen/NextgenCommDetector.h
-HEADERS += ./NextGen/NextgenLogoDetector.h
-HEADERS += ./NextGen/NextgenLogoDetector2.h
-HEADERS += ./NextGen/NextgenSceneChangeDetector.h
-HEADERS += ./NextGen/AudioChangeDetector.h ./NextGen/AudioBuffer.h
-HEADERS += ./NextGen/SubtitleChangeDetector.h
-HEADERS += ./NextGen/AudioChangeDetectorBase.h
-HEADERS += ./NextGen/SubtitleChangeDetectorBase.h
-
-SOURCES += ./NextGen/NextgenCommDetector.cpp
-SOURCES += ./NextGen/AudioChangeDetectorBase.cpp
-SOURCES += ./NextGen/SubtitleChangeDetectorBase.cpp
-SOURCES += ./NextGen/AudioChangeDetector.cpp ./NextGen/AudioBuffer.cpp
-SOURCES += ./NextGen/SubtitleChangeDetector.cpp
-SOURCES += ./NextGen/NextgenLogoDetector.cpp
-SOURCES += ./NextGen/NextgenLogoDetector2.cpp
-SOURCES += ./NextGen/NextgenSceneChangeDetector.cpp
 
 
 
