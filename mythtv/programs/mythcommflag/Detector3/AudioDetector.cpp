@@ -69,7 +69,7 @@ int64_t AudioDetector::GetAudiotime(void)
 
 bool AudioDetector::AddFrames(void *buffer, int frames, int64_t timecode)
 {
-    return AddData(buffer, frames * m_settings.channels * AudioOutputSettings::SampleSize(m_settings.format), timecode, frames);
+    return AddData(buffer, frames * m_settings.m_channels * AudioOutputSettings::SampleSize(m_settings.m_format), timecode, frames);
 }
 
 bool AudioDetector::AddData(void *buffer, int len, int64_t timecode, int frames)
@@ -78,7 +78,7 @@ bool AudioDetector::AddData(void *buffer, int len, int64_t timecode, int frames)
     if (!m_enabled)
         return true;
 
-    int frames_per = m_settings.samplerate / m_fps / 10 + 1;
+    int frames_per = m_settings.m_sampleRate / m_fps / 10 + 1;
     if (frames_per < 1)
         frames_per = 1;
     float *flt = (float*)buffer;
@@ -88,10 +88,10 @@ bool AudioDetector::AddData(void *buffer, int len, int64_t timecode, int frames)
     while (f < frames)
     {
         AudioSample as;
-        as.time = timecode + (f * 1000) / m_settings.samplerate;
-        as.numChannels = std::max(0, std::min(m_settings.channels, CHANNELS_MAX));
+        as.time = timecode + (f * 1000) / m_settings.m_sampleRate;
+        as.numChannels = std::max(0, std::min(m_settings.m_channels, CHANNELS_MAX));
 
-        if (m_settings.format == FORMAT_FLT)
+        if (m_settings.m_format == FORMAT_FLT)
         {
             for (int j = 0; j < frames_per; ++j)
             {

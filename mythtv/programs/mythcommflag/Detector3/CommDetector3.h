@@ -14,7 +14,6 @@ class SceneDetector;
 class LogoDetector;
 class AudioDetector;
 class FrameMetadataAggregator;
-class Deinterlacer;
 
 class CommDetector3 : public CommDetectorBase
 {
@@ -57,9 +56,8 @@ class CommDetector3 : public CommDetectorBase
 		QScopedPointer<BlankDetector> m_blankDet;
 		QScopedPointer<SceneDetector> m_sceneDet;
 		QScopedPointer<LogoDetector> m_logoDet;
-        QScopedPointer<AudioDetector> m_audioDet;
+                QScopedPointer<AudioDetector> m_audioDet;
 		QScopedPointer<FrameMetadataAggregator> m_aggregator;
-		QScopedPointer<Deinterlacer> m_deinterlacer;
 		
 		std::ofstream m_frameLog;
 		frm_dir_map_t m_oldMap;

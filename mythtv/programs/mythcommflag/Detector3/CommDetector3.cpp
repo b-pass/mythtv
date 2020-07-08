@@ -16,7 +16,6 @@
 
 #include "FrameMetadata.h"
 #include "FrameMetadataAggregator.h"
-#include "Deinterlacer.h"
 #include "AudioDetector.h"
 #include "BlankDetector.h"
 #include "SceneDetector.h"
@@ -62,11 +61,10 @@ CommDetector3::~CommDetector3()
 bool CommDetector3::go()
 {
 	m_aggregator.reset(new FrameMetadataAggregator());
-	m_deinterlacer.reset(new Deinterlacer());
 	m_blankDet.reset();
 	m_sceneDet.reset();
 	m_logoDet.reset();
-    m_audioDet.reset();
+        m_audioDet.reset();
     
 	if (m_method & COMM_DETECT_BLANKS)
 		m_blankDet.reset(new BlankDetector());
@@ -112,8 +110,10 @@ bool CommDetector3::go()
     }
     
     m_player->EnableSubtitles(false);
+    m_player->ForceDeinterlacer(false, DEINT_CPU | DEINT_MEDIUM);
 	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(30));
 	m_player->ResetTotalDuration();
+        
 	
     if (m_logoDet)
 		preSearchForLogo();
@@ -186,9 +186,6 @@ void CommDetector3::preSearchForLogo()
 		
         // Individal frames have a size which can be larger than the actual size of the video
         QSize const &videoSize = m_player->GetVideoSize();
-        
-		if (frame && frame->buf)
-			m_deinterlacer->processFrame(frame);
 		
 		if (frame && frame->buf && (frame->frameNumber % interval) == 0)
 		{
@@ -289,8 +286,6 @@ bool CommDetector3::processAll()
 		 * if the data is still valid. */
 		 if (frame)
 		 {
-			m_deinterlacer->processFrame(frame);
-			
 			stride = static_cast<uint32_t>(frame->pitches[0]);
 			buf = frame->buf;
 		}
