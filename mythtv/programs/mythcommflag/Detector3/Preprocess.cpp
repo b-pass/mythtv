@@ -31,8 +31,10 @@ std::string findLog(char const *file)
         
     if (filename.compare(p, 4, ".mpg", 4) == 0 && p+4 == filename.length())
         filename.replace(p, 4, ".log*");
+    else if (filename.compare(p, 4, ".txt", 4) == 0 && p+4 == filename.length())
+        filename.replace(p, 4, ".log*");
     else if (filename.compare(p, 3, ".ts", 3) == 0 && p+3 == filename.length())
-        filename.replace(p, 3, ".log*");            
+        filename.replace(p, 3, ".log*");
     p = filename.rfind('/');
     if (p != std::string::npos)
         filename.insert(p+1, "../*/*");
@@ -46,7 +48,7 @@ std::string findLog(char const *file)
         filename = g.gl_pathv[0];
         if (filename.compare(filename.size() - 3, 3, ".xz") == 0)
         {
-            size_t p = filename.rfind('_');
+            p = filename.rfind('_');
             std::string chanid, starttime;
             if (p != std::string::npos && p != 0)
             {
@@ -101,6 +103,7 @@ int main(int argc, char *argv[])
     bool logoDet = true, sceneDet = true, audioDet = true;
     std::istream *is = nullptr;
     std::ifstream ifs;
+    std::string filename;
 
     for (int i = 1; i < argc; ++i)
     {
@@ -121,7 +124,7 @@ int main(int argc, char *argv[])
         {
             ifs.close();
             ifs.clear();
-            std::string filename = findLog(argv[i]);
+            filename = findLog(argv[i]);
             std::cerr << "Opening " << filename << std::endl;
             ifs.open(filename.c_str());
             ifs.peek();
@@ -181,6 +184,7 @@ int main(int argc, char *argv[])
 		is->ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	}
 	
+    std::cout << "# " << filename << std::endl;
     aggregator.nnPrint(std::cout);
 
     unlink("/tmp/mcfunxz");

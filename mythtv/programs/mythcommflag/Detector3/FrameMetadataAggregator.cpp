@@ -31,84 +31,100 @@ FrameMetadataAggregator::FrameMetadataAggregator()
 
 void FrameMetadataAggregator::add(FrameMetadata const &meta)
 {
-	if (meta.blank && m_segments.empty())
-    {
-        m_prev = meta;
-        return;
-    }
-    
-	if (m_prev.blank && !meta.blank)
+	if (meta.blank)
+        {
+                m_blanks.push_back(meta);
+                m_prev = meta;
+        }
+        else if (m_prev.blank && !meta.blank)
 	{
+                m_blanks.push_back(meta);
+                
+                int i = 0;
+                if (!m_segments.empty())
+                {
+                        for ( ; i < m_blanks.size()/2; ++i)
+                                doAdd(m_blanks[i]);
+                }
+                else
+                {
+                        m_currentFormat = meta.format & (FF_PILLARBOX|FF_LETTERBOX);
+                }
+                
 		m_segments.push_back(ShowSegment());
-		m_segments.back().frameStart = meta.frameNumber;
-		m_segments.back().timeStampStart = meta.frameTime;
-        m_segments.back().timeCodeStart = meta.timeCode;
+                
+		m_segments.back().frameStart = m_blanks[i].frameNumber;
+		m_segments.back().timeStampStart = m_blanks[i].frameTime;
+                m_segments.back().timeCodeStart = m_blanks[i].timeCode;
+        
+                for ( ; i < m_blanks.size(); ++i)
+                        doAdd(m_blanks[i]);
+                
+                m_blanks.clear();
 	}
-	
+        else
+        {
+                doAdd(meta);
+        }
+}
+
+void FrameMetadataAggregator::doAdd(FrameMetadata const &meta)
+{
 	ShowSegment &seg = m_segments.back();
 
-    seg.numAudioChannels = std::max(seg.numAudioChannels, meta.numChannels);
-    seg.audioCount ++;
-    for (int c = 0; c < meta.numChannels; c++)
-    {
-        seg.peakAudio[c] = std::max(seg.peakAudio[c], meta.peakAudio[c]);
-        seg.totalAudio[c] += meta.peakAudio[c];
-    }
-
-    if (meta.blank)
-    {
-        m_prev = meta;
-        return;
-    }
+        seg.numAudioChannels = std::max(seg.numAudioChannels, meta.numChannels);
+        seg.audioCount ++;
+        for (int c = 0; c < meta.numChannels; c++)
+        {
+                seg.peakAudio[c] = std::max(seg.peakAudio[c], meta.peakAudio[c]);
+                seg.totalAudio[c] += meta.peakAudio[c];
+        }
     
 	seg.frameStop = meta.frameNumber;
 	
-	if (meta.frameNumber > 1)
-	{
-		if (meta.aspect != m_prev.aspect)
-			seg.formatChanges++;
-		
-                if (m_prev.numChannels != meta.numChannels)
-                        seg.formatChanges++;
-                
-		// Only change format when we are SURE it's different
-		int prevFormat = m_currentFormat;
-		
-		if (prevFormat & FF_LETTERBOX)
-		{
-			if (!(meta.format & (FF_LETTERBOX|FF_MAYBE_LETTERBOX)))
-				m_currentFormat &= ~FF_LETTERBOX;
-		}
-		else
-		{
-			if (meta.format & FF_LETTERBOX)
-				m_currentFormat |= FF_LETTERBOX;
-		}
-		
-		if (prevFormat & FF_PILLARBOX)
-		{
-			if (!(meta.format & (FF_PILLARBOX|FF_MAYBE_PILLARBOX)))
-				m_currentFormat &= ~FF_PILLARBOX;
-		}
-		else
-		{
-			if (meta.format & FF_PILLARBOX)
-				m_currentFormat |= FF_PILLARBOX;
-		}
-		
-		if (m_currentFormat != prevFormat)
-			seg.formatChanges++;
-	}
-	else
-	{
-		m_currentFormat = meta.format & (FF_PILLARBOX|FF_LETTERBOX);
-	}
-	
-	if (meta.scene)
-		seg.sceneCount++;
 	
 	if (meta.logo)
 		seg.logoCount++;
+        
+	if (meta.scene)
+		seg.sceneCount++;
+        
+        if (m_prev.numChannels != meta.numChannels)
+                seg.formatChanges++;
+        
+        if (!meta.blank)
+        {
+                if (meta.aspect != m_prev.aspect)
+                        seg.formatChanges++;
+                
+                // Only change format when we are SURE it's different
+                int prevFormat = m_currentFormat;
+                
+                if (prevFormat & FF_LETTERBOX)
+                {
+                        if (!(meta.format & (FF_LETTERBOX|FF_MAYBE_LETTERBOX)))
+                                m_currentFormat &= ~FF_LETTERBOX;
+                }
+                else
+                {
+                        if (meta.format & FF_LETTERBOX)
+                                m_currentFormat |= FF_LETTERBOX;
+                }
+                
+                if (prevFormat & FF_PILLARBOX)
+                {
+                        if (!(meta.format & (FF_PILLARBOX|FF_MAYBE_PILLARBOX)))
+                                m_currentFormat &= ~FF_PILLARBOX;
+                }
+                else
+                {
+                        if (meta.format & FF_PILLARBOX)
+                                m_currentFormat |= FF_PILLARBOX;
+                }
+                
+                if (m_currentFormat != prevFormat)
+                        seg.formatChanges++;
+        }
 	
 	m_prev = meta;
 }
@@ -206,7 +222,7 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 			if (cur.score < 0 && (cur.frameStop - prev.frameStart + 1) / m_frameRate > m_maxBreakLength)
 			{
 				// force positive it if would make a negative seg too long
-				cur.score = 0;
+				cur.score = 1;
 				++i;
 			}
 			else
@@ -248,8 +264,8 @@ QList<ShowSegment> FrameMetadataAggregator::coalesce() const
 		
 		if (b != e)
 		{
-            changed = true;
-			for (int i = b + 1; i < e; ++i)
+                        changed = true;
+			for (int j = b + 1; j < e; ++j)
 			{
 				segments[b] += segments[b+1];
 				segments.removeAt(b+1);

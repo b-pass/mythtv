@@ -42,6 +42,8 @@ def load(filename):
     
     last_ans = 0.0
     ctime = 0
+    logo = 0.0
+    nologo = 0.0
     for line in open(filename, 'r'):
         line = line.strip()
         if not line or line[0] == '#':
@@ -49,7 +51,7 @@ def load(filename):
         
         parts = line.split()
         if len(parts) < 11:
-            print("Ignored bad line: " + line)
+            print(filename + ": Ignored bad line: " + line)
             continue
         
         if parts[2][-1] == '-':
@@ -69,6 +71,12 @@ def load(filename):
         sec = int(parts[1].split(':')[0])*60 + float(parts[1].split(':')[1])
         parts[4] = (sec % 3600) / 15.0 / (3600.0/15.0)
         
+        #f = parts[2].split('-', 2)
+        #flen = (int(f[1].strip()) - int(f[0].strip()))
+        #lp = max(0.0,min(float(parts[6]),1.0))
+        #logo += lp * flen
+        #nologo += (1.0 - lp) * flen
+        
         d = [max(0.0,min(float(x),1.0)) for x in parts[3:]]
         d.append(last_ans)
         #d.append(min(ctime/1200.0, 1.0))
@@ -81,6 +89,13 @@ def load(filename):
             last_ans = 0.0
             ctime += sec
         
+    #for d in data:
+    #    if logo < nologo:
+    #        d[6] = 1.0
+    #        d += [0.0]
+    #    else:
+    #        d += [1.0]
+    
     return (info, data, answers)
 
 input_data = {}
@@ -168,15 +183,15 @@ with tf.name_scope('output'):
     tf.summary.histogram("weights", weights_out)
     network = tf.matmul(network, weights_out)
 
-with tf.name_scope('results'):
-    loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=answers, logits=network), name="loss")
-    tf.summary.scalar("loss", loss)
-    network = tf.nn.sigmoid(network, name="main")
+loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=answers, logits=network), name="loss")
+tf.summary.scalar("loss", loss)
 
-    #correct_prediction = tf.equal(tf.argmax(network, 1), tf.argmax(answers, 1))
-    correct_prediction = tf.equal(tf.less_equal(network, 0.5), tf.less_equal(answers, 0.5), name="correct_prediction")
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float64), name="accuracy")
-    tf.summary.scalar("accuracy_scalar", accuracy)
+network = tf.nn.sigmoid(network, name="main")
+
+#correct_prediction = tf.equal(tf.argmax(network, 1), tf.argmax(answers, 1))
+correct_prediction = tf.equal(tf.less_equal(network, 0.5), tf.less_equal(answers, 0.5), name="correct_prediction")
+accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float64), name="accuracy")
+tf.summary.scalar("accuracy_scalar", accuracy)
 
 train_step = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 

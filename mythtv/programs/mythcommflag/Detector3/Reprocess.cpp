@@ -4,6 +4,7 @@
 #include <sstream>
 #include <limits>
 #include <unistd.h>
+#include <glob.h>
 
 #include <QCoreApplication>
 
@@ -12,6 +13,72 @@
 #include "mythlogging.h"
 
 #include "FrameMetadataAggregator.h"
+
+std::string findLog(char const *);
+std::string findLog(char const *file)
+{
+    char const *temp = realpath(file, NULL);
+    if (!temp)
+        temp = file;
+
+    std::string filename = temp;
+    size_t p = filename.rfind('.');
+    if (p == std::string::npos)
+        return filename;
+    
+    if (filename.compare(p, 4, ".log", 4) == 0 && p+4 == filename.length())
+        return filename;
+        
+    if (filename.compare(p, 4, ".mpg", 4) == 0 && p+4 == filename.length())
+        filename.replace(p, 4, ".log*");
+    else if (filename.compare(p, 4, ".txt", 4) == 0 && p+4 == filename.length())
+        filename.replace(p, 4, ".log*");
+    else if (filename.compare(p, 3, ".ts", 3) == 0 && p+3 == filename.length())
+        filename.replace(p, 3, ".log*");            
+    p = filename.rfind('/');
+    if (p != std::string::npos)
+        filename.insert(p+1, "../*/*");
+    //filename.replace(filename.size() - 9, 4, "*");
+    
+    glob_t g;
+    memset(&g, 0, sizeof(g));
+    glob(filename.c_str(), 0, NULL, &g);
+    if (g.gl_pathc)
+    {
+        filename = g.gl_pathv[0];
+        if (filename.compare(filename.size() - 3, 3, ".xz") == 0)
+        {
+            p = filename.rfind('_');
+            std::string chanid, starttime;
+            if (p != std::string::npos && p != 0)
+            {
+				size_t cp = p - 1;
+				while (cp >= 0 && isdigit(filename[cp]))
+					--cp;
+				++cp;
+				chanid = filename.substr(cp, p - cp);
+				size_t sp = p + 1;
+				while (sp < filename.size() && isdigit(filename[sp]))
+					starttime += filename[sp++];
+			}
+			std::string cmd = "xzcat " + filename;
+			if (!chanid.empty() && !starttime.empty())
+				cmd += " | ./fixtimes.py " + chanid + " " + starttime;
+			cmd += " > /tmp/mcfunxz";
+            std::cerr << cmd << std::endl;
+            int res = system(cmd.c_str());
+            if (res == 0)
+                filename = "/tmp/mcfunxz";
+            else
+                std::cerr << "xzcat failed!" << std::endl;
+        }
+        return filename;
+    }
+    else
+    {
+        return file;
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -40,7 +107,7 @@ int main(int argc, char *argv[])
     bool nn = false;
     std::istream *is = nullptr;
     std::ifstream ifs;
-
+    std::string filename;
     for (int i = 1; i < argc; ++i)
     {
         if (argv[i][0] == '-')
@@ -64,11 +131,13 @@ int main(int argc, char *argv[])
         {
             ifs.close();
             ifs.clear();
-            ifs.open(argv[i]);
+            filename = findLog(argv[i]);
+            std::cerr << "Opening " << filename << std::endl;
+            ifs.open(filename.c_str());
             ifs.peek();
             if (!ifs)
             {
-                std::cerr << "Failed to open/read " << argv[i] << std::endl;
+                std::cerr << "Failed to open/read " << filename << std::endl;
                 return 1;
             }
             is = &ifs;
@@ -124,9 +193,9 @@ int main(int argc, char *argv[])
 	
 	if (verbose)
 		std::cerr << "Done reading, got " << frameCount << " frames" << std::endl;
-	std::cout << frameCount << std::endl;
-	std::cout << fps << std::endl;
-	std::cout << std::endl;
+	std::cerr << frameCount << std::endl;
+	std::cerr << fps << std::endl;
+	std::cerr << std::endl;
 	
 	frm_dir_map_t commercialBreakList;
     if (nn)
@@ -153,12 +222,16 @@ int main(int argc, char *argv[])
     }
     
     aggregator.calculateBreakList(commercialBreakList, nn);
+    if (nn) {
+        std::cout << "# " << filename << std::endl;
+        aggregator.nnPrint(std::cout);
+    }
     
-	std::cout << "\n\n\n----------------------------" << std::endl;
+	std::cerr << "\n\n\n----------------------------" << std::endl;
 	int count = 0;
 	if (commercialBreakList.empty())
 	{
-		std::cout << "No breaks" << std::endl;
+		std::cerr << "No breaks" << std::endl;
 	}
 	else
 	{
@@ -167,14 +240,14 @@ int main(int argc, char *argv[])
 			it != commercialBreakList.end();
 			++it)
 		{
-			std::cout << "framenum: " << it.key() << "\tmarktype: " << *it << std::endl;
+			std::cerr << "framenum: " << it.key() << "\tmarktype: " << *it << std::endl;
 			if (*it == MARK_COMM_START)
 				++count;
 		}
 	}
 	
-	std::cout << "----------------------------" << std::endl;
-	std::cout << count << std::endl;
+	std::cerr << "----------------------------" << std::endl;
+	std::cerr << count << std::endl;
 	
 	return 0;
 }

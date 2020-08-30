@@ -88,8 +88,8 @@ public:
 	
 	void print(std::ostream &out, bool verbose = false) const;
 
-    void nnPrint(std::ostream &out) const;
-    void nnTweak(unsigned int frameStart, signed int score);
+        void nnPrint(std::ostream &out) const;
+        void nnTweak(unsigned int frameStart, signed int score);
 
 private:
 	QList<ShowSegment> coalesce() const;
@@ -99,6 +99,7 @@ private:
 				QList<ShowSegment> const &segments, 
 				char const *desc = "?",
 				bool verbose = false) const;
+	void doAdd(FrameMetadata const &meta);
 	
 	uint32_t m_maxBreakLength;
 	uint32_t m_minBreakLength;
@@ -112,6 +113,7 @@ private:
 	bool m_logo, m_scene, m_audio;
 	
 	QList<ShowSegment> m_segments;
+        QList<FrameMetadata> m_blanks;
 };
 
 #endif//MCF_CD3_FRAME_METADATA_AGGREGATOR_H_
