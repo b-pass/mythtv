@@ -88,7 +88,7 @@ public:
 	
 	void print(std::ostream &out, bool verbose = false) const;
 
-        void nnPrint(std::ostream &out) const;
+        void nnPrint(std::ostream &out, bool rescore = true) const;
         void nnTweak(unsigned int frameStart, signed int score);
 
 private:

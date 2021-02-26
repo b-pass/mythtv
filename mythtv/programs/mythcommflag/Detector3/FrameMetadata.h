@@ -183,7 +183,7 @@ struct FrameMetadata
             >> meta.numChannels
 		;
 
-        for (int c = 0; c < meta.numChannels; c++)
+        for (int c = 0; c < meta.numChannels && c < CHANNELS_MAX; c++)
             is >> meta.peakAudio[c];
 
         is >> meta.timeCode;

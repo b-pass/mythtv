@@ -21,14 +21,14 @@ Pos = Normalized position (-1 = first 10 mins, 0 = middle, 1 = last 10 mins)
 Scenes = Scene change rate (seconds per scene)
 Logo = Logo detection (as percent of frames)
 Formats = Number of format changes
-Sides = Average peak audio of left and right channels 
+Sides = Average peak audio of left and right channels
 Center = Average peak audio of center channel
 Read = Average peak audio of rear/surround channels
 
-Truthiness is a raw score, where < 0 is a commercial and > 0 
+Truthiness is a raw score, where < 0 is a commercial and > 0
 is a show segment and == 0 is unknown
 
-Audio should be absolute value peak (from 0 to 32768).  If a channel is 
+Audio should be absolute value peak (from 0 to 32768).  If a channel is
 not present, set to 0.  If no audio available, set all to zero.
 
 # comment lines and blank lines are legal and ignored
@@ -38,8 +38,10 @@ not present, set to 0.  If no audio available, set all to zero.
 input_info = []
 input_data = []
 input_answers = []
+input_data_ext = []
+extra = False
 
-def load(filename):
+def OLDload(filename):
     info = []
     data = []
     answers = []
@@ -48,10 +50,59 @@ def load(filename):
         line = line.strip()
         if not line or line[0] == '#':
             continue
-        
+
         parts = line.split()
         if len(parts) < 11:
             print("Ignored bad line: " + line)
+            continue
+
+        if parts[2][-1] == '-':
+            parts[2] += parts[3]
+            del parts[3]
+
+        score = int(parts[0])
+        haveAnswers = haveAnswers or score != 0
+
+        answers += [1 if score < 0 else 0]
+        info += [parts[2]]
+
+        sec = int(parts[1].split(':')[0])*60 + float(parts[1].split(':')[1])
+        parts[4] = (sec % 3600) / 15.0 / (3600.0/15.0)
+        data += [[max(0.0,min(float(x),1.0)) for x in parts[3:]]]
+
+    if not haveAnswers:
+        answers = []
+
+    return (info, data, answers)
+
+def normalize(when,parts):
+    when = float(when - int(when / 3600)*3600) / 3600.0
+    parts[0] = float(parts[0])
+    parts[1] = float(parts[1]) / parts[0]
+    parts[2] = float(parts[2])
+    parts[3] = float(parts[3]) / parts[0]
+    parts[4] = float(parts[4]) / parts[0]
+    for c in range(8):
+        parts[5+c*2] = float(parts[5+c*2]) / parts[0]
+        parts[6+c*2] = float(parts[6+c*2]) / 32767.0
+    return [when] + parts
+
+def load(filename):
+    info = []
+    data = []
+    answers = []
+    
+    ctime = 0
+    logo = 0.0
+    nologo = 0.0
+    for line in open(filename, 'r'):
+        line = line.strip()
+        if not line or line[0] == '#':
+            continue
+        
+        parts = line.split()
+        if len(parts) < 11:
+            print(filename + ": Ignored bad line: " + line)
             continue
         
         if parts[2][-1] == '-':
@@ -59,20 +110,21 @@ def load(filename):
             del parts[3]
         
         score = int(parts[0])
-        haveAnswers = haveAnswers or score != 0
+        if score == 0:
+            continue
+        elif score < 0:
+            answers += [[1.0]]
+        else:
+            answers += [[0.0]]
         
-        answers += [1 if score < 0 else 0]
         info += [parts[2]]
 
         sec = int(parts[1].split(':')[0])*60 + float(parts[1].split(':')[1])
-        parts[4] = (sec % 3600) / 15.0 / (3600.0/15.0)
-        data += [[max(0.0,min(float(x),1.0)) for x in parts[3:]]]
-    
-    if not haveAnswers:
-        answers = []
-    
+        
+        d = normalize(sec, parts[3:])
+        data.append(d)
+        
     return (info, data, answers)
-
 (input_info, input_data, input_answers) = load(sys.argv[1])
 
 os.system('cp '+sys.argv[1]+' /tmp/test')
@@ -80,74 +132,35 @@ os.system('cp '+sys.argv[1]+' /tmp/test')
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '1'
 
 import numpy as np
-import tensorflow.compat.v1 as tf
-tf.disable_v2_behavior()
 import tensorflow as tf
-#from tensorflow.contrib.tensor_forest.python import tensor_forest
-from tensorflow.python.ops import resources
+from tensorflow import keras
+from tensorflow.keras import layers
 
 if len(sys.argv) > 2:
     model = sys.argv[2]
     print("Using " + model)
 else:
-    model = '/data/models/mcf.meta'
+    model = '/data/models/latest'
 
-extra = '-a' in sys.argv and input_answers
+model = keras.models.load_model(model)
 
-init_vars = tf.group(tf.compat.v1.global_variables_initializer(), resources.initialize_resources(resources.shared_resources()))
+last_ans = 1.0
+ctime = 0.0
+for i in range(len(input_data)):
+	input_data[i].append(last_ans)
+	output = model.predict([input_data[i]],verbose=0,batch_size=1)
+	if output > 0.5:
+		last_ans = 1.0
+		ctime = 0.0
+	else:
+		last_ans = 0.0
+		ctime += input_data[i][1]
 
-sess = tf.compat.v1.Session()
+	s = str(input_info[i]).split('-')[0].strip()
+	s += ","
+	s += '-1' if last_ans else '1'
 
-sess.run(init_vars)
+	print(s)
 
-input_data_ext = []
-
-with sess:
-    saver = tf.compat.v1.train.import_meta_graph(model)
-    saver.restore(sess, model[0:model.rfind('.')])
-    graph = tf.compat.v1.get_default_graph()
-
-    #writer = tf.summary.FileWriter("output", sess.graph)
-
-    inputs = graph.get_tensor_by_name('inputs:0')
-    answers = graph.get_tensor_by_name('answers:0')
-    network = graph.get_tensor_by_name('main:0')
-    keep_prob = graph.get_tensor_by_name('keep_prob:0')
-    if extra:
-        #correct_prediction = graph.get_tensor_by_name('correct_prediction:0')
-        accuracy = graph.get_tensor_by_name('accuracy:0')
-  
-    in_shape = int(inputs.get_shape()[1])
-
-    last_ans = 1.0
-    ctime = 0.0
-    for i in range(len(input_data)):
-        if in_shape > 8:
-            input_data[i].append(last_ans)
-            if in_shape > 9:
-                input_data[i].append(min(ctime/1200.0, 1.0))
-        input_data_ext.append(input_data[i])
-        
-        output = sess.run(network,feed_dict={inputs:[input_data[i]], keep_prob:1.0})[0]
-        if output > 0.5:
-            last_ans = 1.0
-            ctime = 0.0
-        else:
-            last_ans = 0.0
-            ctime += input_data[i][1]
-
-        s = str(input_info[i]).split('-')[0].strip()
-        s += ","
-        s += '-1' if last_ans else '1'
-        
-        #if extra:
-        #    a = sess.run(accuracy, feed_dict={inputs: ixd, answers: input_answers[i:i+1], keep_prob: 1.0})
-        #    p = sess.run(correct_prediction, feed_dict={inputs: ixd, answers: input_answers[i:i+1], keep_prob: 1.0})
-        #    s += ", ans=" + str(input_answers[i:i+1]) + ", est=" + str(output) + ", acc=" + str(a) + ", corr=" + str(p)
-
-        print(s)
-
-    #writer.close()
-    if extra:
-        print("A="+str(sess.run(accuracy,feed_dict={inputs:input_data_ext, answers:input_answers, keep_prob:1.0})))
+#writer.close()
 

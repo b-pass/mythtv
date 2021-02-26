@@ -142,7 +142,7 @@ void CommDetector3::preSearchForLogo()
 	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(0));
 	m_player->ResetTotalDuration();
 	
-	double fps = m_player->GetDecoder()->GetFPS();
+	double fps = m_player->GetFrameRate();
 
 	uint64_t start, stop;
 	uint64_t recLen = m_recordingStart.secsTo(m_recordingStop);
@@ -221,6 +221,18 @@ void CommDetector3::preSearchForLogo()
 		m_logoDet.reset();
 }
 
+static void pgm_save(uint8_t const *buf, int wrap, int xsize, int ysize, char const *filename)
+{
+    FILE *f;
+    int i;
+
+    f = fopen(filename,"w");
+    fprintf(f, "P5\n%d %d\n%d\n", xsize, ysize, 255);
+    for (i = 0; i < ysize; i++)
+        fwrite(buf + i * wrap, 1, xsize, f);
+    fclose(f);
+}
+
 bool CommDetector3::processAll()
 {
     QTime flagTime;
@@ -232,7 +244,7 @@ bool CommDetector3::processAll()
 	m_player->DiscardVideoFrame(m_player->GetRawVideoFrame(30));
 	m_player->ResetTotalDuration();
     
-	double fps = m_player->GetDecoder()->GetFPS();
+	double fps = m_player->GetFrameRate();
 
     if (m_audioDet)
         m_audioDet->Enable(fps);
@@ -279,6 +291,7 @@ bool CommDetector3::processAll()
 		uint32_t stride;
 		bool wasBlank = true;
 		QDateTime frameTime;
+                
 		
 		/* Sometimes something bad happens in the decoder and it nulls 
 		 * out frame->buf in the middle of our using it.  We copy it 
@@ -298,7 +311,14 @@ bool CommDetector3::processAll()
 		if (buf && stride)
 		{
 			buf += frame->offsets[0];
-			
+		
+                        /*if (frame->frameNumber%30 == 0)
+                        {
+                                char temp[256];
+                                sprintf(temp, "/tmp/debug/%d.pgm", frame->frameNumber);
+                                pgm_save(buf, stride, videoSize.width(), videoSize.height(), temp);
+                        }*/
+                                        
 			FrameMetadata meta;
 			meta.Init(frame, buf, videoSize.width(), videoSize.height(), stride, fps, m_player->GetVideoAspect());
 			
@@ -340,7 +360,7 @@ bool CommDetector3::processAll()
 		m_player->DiscardVideoFrame(frame);
 		frame = NULL;
 		
-		if (frameTime >= m_recordingStop)
+		if (m_stillRecording && frameTime >= m_recordingStop)
 			break;
 		
 		while (m_stillRecording)

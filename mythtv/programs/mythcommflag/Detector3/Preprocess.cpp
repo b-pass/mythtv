@@ -122,8 +122,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            ifs.close();
-            ifs.clear();
+            //ifs.close(); ifs.clear();
             filename = findLog(argv[i]);
             std::cerr << "Opening " << filename << std::endl;
             ifs.open(filename.c_str());
@@ -141,51 +140,47 @@ int main(int argc, char *argv[])
 	aggregator.configure(30, logoDet, sceneDet, audioDet);
 	
 	uint64_t frameCount = 0;
-	while (!!*is)
+    std::string line;
+	while (std::getline(*is,line))
 	{
-		int ch = is->peek();
-		if (ch <= 0 || ch == '\r' || ch == '\n')
-		{
-			is->ignore(1); // and skip the newline
+		if (line.empty() || line[0] == '\r' || line[0] == '\n')
 			continue;
-		}
 		
-		if (ch == '#' || ch == 'N')
-		{
-			is->ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+		if (line[0] == '#' || line[0] == 'N' || line[0] == 'f')
 			continue;
-		}
 		
-		if (ch == 'F')
+		if (line[0] == 'F')
 		{
-            double tmpFps;
-			is->ignore(4);
-			*is >> tmpFps;
-            if (fps < 1)
+            std::istringstream iss(line.substr(4));
+            double tmpFps = 0;
+			iss >> tmpFps;
+            if (fps < 1 && tmpFps > 0)
                 fps = tmpFps;
 			aggregator.configure(fps, logoDet, sceneDet, audioDet);
 			continue;
 		}
-		
-		if (!isdigit(ch))
+        
+        if (line.size() < 15)
+            continue;
+        
+		if (!isdigit(line[0]))
 		{
-			std::cerr << "Unexpected character: " << ch << "=" << (char)ch << std::endl;
+			std::cerr << "Unexpected character: " << (int)line[0] << "=" << (char)line[0] << std::endl;
 			return 2;
 		}
 		
 		FrameMetadata meta;
-		*is >> meta;
-		if (!*is)
-			break;
-		
+        
+        std::istringstream iss(line);
+        iss >> meta;
+        
 		aggregator.add(meta);
 		++frameCount;
-		
-		is->ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 	}
 	
     std::cout << "# " << filename << std::endl;
-    aggregator.nnPrint(std::cout);
+    if (frameCount > 0)
+        aggregator.nnPrint(std::cout);
 
     unlink("/tmp/mcfunxz");
 	return 0;

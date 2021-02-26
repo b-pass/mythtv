@@ -104,7 +104,7 @@ int main(int argc, char *argv[])
 
     bool verbose = false;
     bool logoDet = true, sceneDet = true, audioDet = true;
-    bool nn = false;
+    bool nn = true;
     std::istream *is = nullptr;
     std::ifstream ifs;
     std::string filename;
@@ -124,6 +124,8 @@ int main(int argc, char *argv[])
                 verbose = true;
             else if (strcasecmp(argv[i], "-nn") == 0)
                 nn = true;
+            else if (strcasecmp(argv[i], "-nonn") == 0)
+                nn = false;
             else if (strcasecmp(argv[i], "--") == 0)
                 is = &std::cin;
         }
@@ -224,7 +226,7 @@ int main(int argc, char *argv[])
     aggregator.calculateBreakList(commercialBreakList, nn);
     if (nn) {
         std::cout << "# " << filename << std::endl;
-        aggregator.nnPrint(std::cout);
+        aggregator.nnPrint(std::cout, false);
     }
     
 	std::cerr << "\n\n\n----------------------------" << std::endl;

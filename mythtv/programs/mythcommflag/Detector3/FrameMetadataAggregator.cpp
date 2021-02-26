@@ -615,9 +615,11 @@ void FrameMetadataAggregator::configure(double frameRate, bool logo, bool scene,
     m_audio = audio;
 }
 
-void FrameMetadataAggregator::nnPrint(std::ostream &out) const
+void FrameMetadataAggregator::nnPrint(std::ostream &out, bool rescore) const
 {
-    QList<ShowSegment> oldSegs = coalesce();
+    QList<ShowSegment> oldSegs;
+    if (rescore)
+        oldSegs = coalesce();
     
     if (m_audio)
     {
@@ -640,84 +642,55 @@ void FrameMetadataAggregator::nnPrint(std::ostream &out) const
 	for (int i = 0; i < m_segments.size(); ++i)
 	{
 		ShowSegment seg = m_segments[i]; // not a ref!
-		calculateSegmentScore(seg);
-        for (int j = 0; j < oldSegs.size(); ++j)
-        {
-            if (seg.frameStart >= oldSegs[j].frameStart && seg.frameStart < oldSegs[j].frameStop)
-                seg.score = oldSegs[j].score < 0 ? -1 : +1;
-        }
-
-        double curTime = seg.timeStampStart;
-		uint64_t totalFrames = seg.frameStop - seg.frameStart + 1;
-		double totalTime = totalFrames / m_frameRate;
-
-        char buffer[64];
-		snprintf(buffer, sizeof(buffer),
-			"%-5d %02d:%04.01lf %6ld-%-6ld ",
-            seg.score,
-            int(curTime/60.0), (curTime - int(curTime/60.0)*60),
-			seg.frameStart, seg.frameStop
-        );
-		out << buffer;
-
-        // segment time, max 600s
-        out << (std::min(totalTime, 600.0) / 600.0) << " ";
-
-        // segment position (beg/end=1, every 30 mins=0.5, other=0)
-        if (curTime + totalTime < 600 || duration - curTime < 600)
-            out << "1 ";
-        else if (int(curTime)%1800 < 120 || int(curTime)%1800 > 1780 || int(curTime+totalTime)%1800 < 120 || int(curTime+totalTime)%1800 > 1780)
-            out << "0.5 ";
-        else
-            out << "0 ";
-
-        // scenes per second
-        out << std::min(totalTime > 0 ? seg.sceneCount / totalTime : 0.0, 1.0) << " ";
-
-        // logo percent
-        out << (m_logo && totalFrames ? seg.logoCount / double(totalFrames) : 0.0) << " ";
-
-        // format and size changes, max 4
-        out << std::min((seg.formatChanges + seg.sizeChanges) / 4.0, 1.0) << " ";
-        
-        if (seg.numAudioChannels && seg.audioCount)
-        {
-            uint64_t lr = 0, lrCount = 1;
-            uint64_t c = 0;
-            uint64_t surr = 0, surrCount = 0;
-            
-            lr += seg.totalAudio[0];
-            if (seg.numAudioChannels > 1)
-            {
-                lr += seg.totalAudio[1];
-                lrCount++;
-
-                if (seg.numAudioChannels > 2)
+                if (rescore)
                 {
-                    c = seg.totalAudio[2];
-
-                    for (int j = 3; j < seg.numAudioChannels; j++)
-                    {
-                        surr += seg.totalAudio[j];
-                        surrCount++;
-                    }
+                        calculateSegmentScore(seg);
+                        for (int j = 0; j < oldSegs.size(); ++j)
+                        {
+                            if (seg.frameStart >= oldSegs[j].frameStart && seg.frameStart < oldSegs[j].frameStop)
+                                seg.score = oldSegs[j].score < 0 ? -1 : +1;
+                        }
                 }
-            }
+                else
+                {
+                        if (seg.score > 0) seg.score = 1;
+                        else if (seg.score < 0) seg.score = -1;
+                }
 
-            out << std::min((lr / (seg.audioCount * lrCount)) / 32768.0, 1.0) << " ";
-            out << std::min((c / seg.audioCount) / 32768.0, 1.0) << " ";
+                double curTime = seg.timeStampStart;
+                uint64_t totalFrames = seg.frameStop - seg.frameStart + 1;
+                double totalTime = totalFrames / m_frameRate;
 
-            if (surrCount)
-                out << std::min((surr / (seg.audioCount * surrCount)) / 32768.0, 1.0) << " ";
-            else
-                out << "0 ";
-        }
-        else
-        {
-            out << "0 0 0 ";
-        }
+                char buffer[64];
+                snprintf(buffer, sizeof(buffer),
+                        "%-5d %02d:%04.01lf %6ld-%-6ld",
+                        seg.score,
+                        int(curTime/60.0), (curTime - int(curTime/60.0)*60),
+                        seg.frameStart, seg.frameStop
+                );
+                out << buffer << ' ';
 
-        out << "\n";
+                // segment time
+                out << totalTime << ' ';
+
+                // scenes
+                out << seg.sceneCount << ' ';
+
+                // logo percent
+                out << (m_logo && totalFrames ? seg.logoCount / double(totalFrames) : 0.0) << ' ';
+
+                // format and size changes
+                out << seg.formatChanges << ' ';
+                out << seg.sizeChanges << ' ';
+                
+                // audio
+                int c = 0;
+                for (c = 0; c < seg.numAudioChannels; c++)
+                        out << seg.totalAudio[c] << ' ' << seg.peakAudio[c] << ' ';
+                for ( ; c < CHANNELS_MAX; c++)
+                        out << "0 0 ";
+
+                out << "\n";
 	}
     
 	out << std::flush;
