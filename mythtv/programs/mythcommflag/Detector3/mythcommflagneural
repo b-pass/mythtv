@@ -76,6 +76,7 @@ def OLDload(filename):
     return (info, data, answers)
 
 def normalize(when,parts):
+    #print(len(parts),parts,file=sys.stderr)
     when = float(when - int(when / 3600)*3600) / 3600.0
     parts[0] = float(parts[0])
     parts[1] = float(parts[1]) / parts[0]
@@ -144,7 +145,7 @@ else:
 
 model = keras.models.load_model(model)
 
-last_ans = 1.0
+last_ans = 0.0
 ctime = 0.0
 for i in range(len(input_data)):
 	input_data[i].append(last_ans)

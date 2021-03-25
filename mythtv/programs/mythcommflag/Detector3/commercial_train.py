@@ -124,7 +124,6 @@ for f in sys.argv[1:]:
     input_data[f] = (d, a)
 
 test_data = {}
-tdx = 0
 if "-t" in sys.argv:
     i = len(sys.argv) - 1
     while i > 0:
@@ -133,10 +132,7 @@ if "-t" in sys.argv:
         if f == "-t":
             break
         if not os.path.isfile(f):
-            try:
-                tdx = int(f)
-            except:
-                print("Not a file",f)
+            print("Not a file",f)
             continue
         if f not in input_data:
             (ix, d, a) = load(f)
@@ -162,10 +158,9 @@ all_test_answers = []
 for (f, d) in input_data.items():
     all_input_data += d[0]
     all_input_answers += d[1]
-if not tdx:
-    for (f, d) in test_data.items():
-        all_test_data += d[0]
-        all_test_answers += d[1]
+for (f, d) in test_data.items():
+    all_test_data += d[0]
+    all_test_answers += d[1]
 
 print("Starting TF...")
 
@@ -189,7 +184,7 @@ class GracefulStop(keras.callbacks.Callback):
 			print("\nGraceful stop\n")
 			self.model.stop_training = True
 
-DROPOUT = 0.1
+DROPOUT = 0.25
 
 name = str(num_data_cols)
 inputs = keras.Input(shape=(num_data_cols))
@@ -198,17 +193,10 @@ x = layers.BatchNormalization()(x)
 if DROPOUT:
     x = layers.Dropout(DROPOUT)(x)
     name += 'd' + str(DROPOUT)
-#h = num_data_cols
-#for i in range(10):
-#	x = layers.Dense(h, activation='tanh')(x)
-#	name += '_' + str(h)
-#	h = int(h/2)
-#	if h < 2:
-#		break
 #for h in [21, 17, 21]:
 #[45,60,35]:
 #for h in [64,64,64]:
-for h in [64]*10:
+for h in [64]*5:
 	x = layers.Dense(h, activation='tanh')(x)
 	name += '_' + str(h)
 outputs = layers.Dense(1, activation='sigmoid')(x)
@@ -217,14 +205,14 @@ model.summary()
 
 model.compile(optimizer="adam", loss="binary_crossentropy", metrics=['binary_accuracy', 'mean_squared_error'])
 
-batch_size=12800
+batch_size=128000
 train_dataset = tf.data.Dataset.from_tensor_slices((all_input_data, all_input_answers)).batch(batch_size)
 test_dataset = tf.data.Dataset.from_tensor_slices((all_test_data, all_test_answers)).batch(batch_size)
 callbacks = [
 	GracefulStop(),
     # keras.callbacks.ModelCheckpoint('chk-'+name, monitor='val_binary_accuracy', mode='max', verbose=1, save_best_only=True)
     keras.callbacks.EarlyStopping(monitor='loss', patience=100),
-    keras.callbacks.EarlyStopping(monitor='val_mean_squared_error', patience=100),
+    keras.callbacks.EarlyStopping(monitor='val_loss', patience=100),
 ]
 history = model.fit(train_dataset, epochs=5000, callbacks=callbacks, validation_data=test_dataset)
 
@@ -240,16 +228,16 @@ print(tmetrics)
 name = '%.04f-%.04f-mse%.04f-m%s'%(dmetrics[1],tmetrics[1],tmetrics[2],name)
 
 print()
+for (f,d) in test_data.items():
+    metrics = model.evaluate(d[0],d[1], verbose=0)
+    print('%-30s = %8.04f' % (os.path.basename(f), metrics[1]))
+
+print()
 if dmetrics[1] > 0.96 and tmetrics[1] > 0.96:
 	print('Saving as ' + name)
 	model.save(name)
 else:
 	print('NOT saving this crappy result: ' + name)
-
-print()
-for (f,d) in test_data.items():
-    metrics = model.evaluate(d[0],d[1], verbose=0)
-    print('%-30s = %8.04f' % (os.path.basename(f), metrics[1]))
 
 print()
 print('Name was ' + name)
