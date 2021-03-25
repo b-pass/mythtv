@@ -322,29 +322,30 @@ bool CommDetector3::processAll()
 			FrameMetadata meta;
 			meta.Init(frame, buf, videoSize.width(), videoSize.height(), stride, fps, m_player->GetVideoAspect());
 			
-			frameTime = m_start.addMSecs((uint64_t)(meta.frameTime * 1000));
-			if (frameTime >= m_recordingStart)
-			{
-				if (m_blankDet)
-					m_blankDet->processFrame(meta, buf, videoSize.width(), videoSize.height(), stride);
-				
-				if (m_sceneDet)
-					m_sceneDet->processFrame(meta, buf, videoSize.width(), videoSize.height(), stride);
-				
-				if (m_logoDet)
-					m_logoDet->processFrame(meta, buf, videoSize.width(), videoSize.height(), stride);
+			//frameTime = m_start.addMSecs((uint64_t)(meta.frameTime * 1000));
+                        m_player->SetFramesPlayed(frame->frameNumber);
+                        meta.frameTime = m_player->GetSecondsPlayed(false, 1);
+                        frameTime = m_start.addMSecs(meta.frameTime);
+                        meta.frameTime /= 1000.0;
+                        if (m_blankDet)
+                                m_blankDet->processFrame(meta, buf, videoSize.width(), videoSize.height(), stride);
+                        
+                        if (m_sceneDet)
+                                m_sceneDet->processFrame(meta, buf, videoSize.width(), videoSize.height(), stride);
+                        
+                        if (m_logoDet)
+                                m_logoDet->processFrame(meta, buf, videoSize.width(), videoSize.height(), stride);
 
-                if (m_audioDet)
-                    m_audioDet->processFrame(meta);
-				
-				if (meta.logo)
-					++logoCount;
-				
-				m_frameLog << meta << std::endl;
-				
-				wasBlank = meta.blank;
-				m_aggregator->add(meta);
-			}
+                        if (m_audioDet)
+                                m_audioDet->processFrame(meta);
+                        
+                        if (meta.logo)
+                                ++logoCount;
+                        
+                        m_frameLog << meta << std::endl;
+                        
+                        wasBlank = meta.blank;
+                        m_aggregator->add(meta);
 		}
 		else
 		{
