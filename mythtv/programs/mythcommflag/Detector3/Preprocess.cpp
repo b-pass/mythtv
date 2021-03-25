@@ -62,8 +62,6 @@ std::string findLog(char const *file)
 					starttime += filename[sp++];
 			}
 			std::string cmd = "xzcat " + filename;
-			if (!chanid.empty() && !starttime.empty())
-				cmd += " | ./fixtimes.py " + chanid + " " + starttime;
 			cmd += " > /tmp/mcfunxz";
             std::cerr << cmd << std::endl;
             int res = system(cmd.c_str());
